@@ -58,7 +58,7 @@ export const Navbar: React.FC = () => {
         <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center font-black text-black">
           <Shield className="w-5 h-5 text-black fill-current" />
         </div>
-        <span className="font-extrabold text-sm text-white">MSM-CRISIS</span>
+        <span className="font-extrabold text-sm text-white">GEMA</span>
       </div>
 
       {/* Info Evento Activo & Alerta SMN */}

@@ -36,7 +36,7 @@ export const AppContent: React.FC = () => {
           <Shield className="w-7 h-7 text-black fill-current" />
         </div>
         <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">
-          Cargando MSM-CRISIS (Plan B Operativo)...
+          Cargando GEMA (Gestión de Eventos Meteorológicos Adversos)...
         </p>
       </div>
     );

@@ -44,7 +44,7 @@ app.use('/uploads', express.static(config.uploadDir));
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
-    service: 'msm-crisis-backend',
+    service: 'gema-backend',
     municipality: 'Municipalidad de General San Martín',
     timestamp: new Date().toISOString(),
   });
@@ -76,7 +76,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 app.listen(config.port, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`MSM-CRISIS (Plan B Operativo) - Backend Inicializado`);
+  console.log(`GEMA (Gestión de Eventos Meteorológicos Adversos) - Backend Inicializado`);
   console.log(`Municipalidad de General San Martín`);
   console.log(`Puerto: ${config.port}`);
   console.log(`Ambiente: ${config.nodeEnv}`);

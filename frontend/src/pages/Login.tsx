@@ -41,9 +41,9 @@ export const Login: React.FC = () => {
           <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center shadow-lg shadow-amber-500/20 mb-3">
             <Shield className="w-8 h-8 text-black fill-current" />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">MSM-CRISIS</h1>
+          <h1 className="text-2xl font-black text-white tracking-tight">GEMA</h1>
           <p className="text-xs font-bold text-amber-400 tracking-wider uppercase mt-0.5">
-            Plan B Operativo • Gral. San Martín
+            Gestión de Eventos Meteorológicos Adversos • San Martín
           </p>
           <p className="text-xs text-slate-400 mt-2">
             Plataforma municipal de coordinación en emergencias climáticas

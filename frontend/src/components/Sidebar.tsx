@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
           </div>
           <div>
             <h1 className="font-extrabold text-white text-base tracking-tight leading-none">
-              MSM-CRISIS
+              GEMA
             </h1>
             <p className="text-[11px] font-semibold text-amber-400/90 tracking-wider uppercase mt-1">
               Gral. San Martín

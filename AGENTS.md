@@ -1,6 +1,6 @@
 # AGENTS.md - Documentación Técnica y Operativa para Agentes
 
-> **MSM-CRISIS (Plan B Operativo)**  
+> **GEMA - Gestión de Eventos Meteorológicos Adversos**  
 > **Municipalidad de General San Martín - Provincia de Buenos Aires**  
 > Plataforma de contingencia municipal de misión crítica para la gestión operativa de tormentas severas e inundaciones.
 
@@ -10,7 +10,7 @@
 
 El sistema reemplaza la coordinación informal y fragmentada por WhatsApp durante tormentas e inundaciones severas por una **plataforma operativa común, centralizada, móvil-primero y de alta velocidad**.
 
-### Principios Fundamentales del "Plan B":
+### Principios Fundamentales de GEMA:
 1. **Núcleo Operativo Estricto:** Se enfoca exclusivamente en Eventos, Avisos, Incidentes, Tareas sectoriales en 2 etapas, Mapa operativo con capas GeoJSON de San Martín y Ocupación numérica de centros de evacuados.
 2. **Cero Fricción y Sin Dependencias Externas (Coolify Ready):**
    - No depende de servicios externos privativos (sin Cloudflare D1/R2, sin bots externos, sin APIs públicas de geocodificación propensas a caerse durante cortes de conectividad).
@@ -138,4 +138,4 @@ curl http://localhost:4000/api/evacuation-centers \
 ```
 
 ---
-*MSM-CRISIS Plan B Operativo — Municipalidad de General San Martín.*
+*GEMA — Gestión de Eventos Meteorológicos Adversos — Municipalidad de General San Martín.*

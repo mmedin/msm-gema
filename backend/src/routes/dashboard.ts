@@ -263,7 +263,7 @@ dashboardRouter.get('/snapshot', authenticateToken, async (req: Request, res: Re
     ]);
 
     const snapshot = {
-      title: 'Corte Operativo de Situación - MSM-CRISIS',
+      title: 'Corte Operativo de Situación - GEMA',
       municipality: 'Municipalidad de General San Martín',
       event: targetEvent,
       generatedAt: new Date().toISOString(),

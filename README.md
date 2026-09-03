@@ -1,4 +1,4 @@
-# MSM-CRISIS (Plan B Operativo)
+# GEMA — Gestión de Eventos Meteorológicos Adversos
 
 > **Plataforma de Contingencia de Misión Crítica para Tormentas Severas e Inundaciones**  
 > **Municipalidad de General San Martín — Provincia de Buenos Aires**
@@ -7,13 +7,13 @@
 
 ## 1. Descripción del Proyecto
 
-**MSM-CRISIS (Plan B Operativo)** es una plataforma centralizada, móvil-primero y de alta velocidad diseñada para coordinar las operaciones de emergencia municipal durante tormentas severas, caída de arbolado, riesgos eléctricos e inundaciones en el partido de General San Martín.
+**GEMA (Gestión de Eventos Meteorológicos Adversos)** es una plataforma centralizada, móvil-primero y de alta velocidad diseñada para coordinar las operaciones de emergencia municipal durante tormentas severas, caída de arbolado, riesgos eléctricos e inundaciones en el partido de General San Martín.
 
 Reemplaza los canales informales y fragmentados (grupos de WhatsApp) por un tablero operativo común, estructurado y auditable para el Centro de Operaciones de Emergencia (COE), dependencias sectoriales y cuadrillas en la calle.
 
 ---
 
-## 2. Filosofía y Principios del "Plan B"
+## 2. Filosofía y Principios del Sistema
 
 1. **Núcleo Operativo Estricto:** Foco exclusivo en Eventos, Avisos, Incidentes, Tareas sectoriales en 2 etapas, Mapa operativo con capas GeoJSON de San Martín y Ocupación numérica de centros de evacuados.
 2. **Cero Fricción y Sin Dependencias Externas (Coolify Ready):**
@@ -167,4 +167,4 @@ docker compose down
 - Para detalles de capas geográficas del municipio, consultar [`datos-geo/README.md`](./datos-geo/README.md).
 
 ---
-*Municipalidad de General San Martín — Secretaría de Gobierno / Defensa Civil.*
+*GEMA — Gestión de Eventos Meteorológicos Adversos — Municipalidad de General San Martín.*

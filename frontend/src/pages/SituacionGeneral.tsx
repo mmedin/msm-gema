@@ -119,7 +119,7 @@ export const SituacionGeneral: React.FC = () => {
               CORTE OPERATIVO DE SITUACIÓN
             </h1>
             <p className="text-sm font-bold text-gray-700">Municipalidad de General San Martín</p>
-            <p className="text-xs text-gray-600">Plan B Operativo • Gestión de Emergencias</p>
+            <p className="text-xs text-gray-600">GEMA • Gestión de Eventos Meteorológicos Adversos</p>
           </div>
           <div className="text-right text-xs text-gray-800 font-mono">
             <p><strong>Evento:</strong> {stats.event.code} - {stats.event.description}</p>
@@ -336,7 +336,7 @@ export const SituacionGeneral: React.FC = () => {
       <div className="hidden print:block mt-12 pt-6 border-t border-gray-400 text-xs text-gray-700">
         <div className="flex justify-between items-end">
           <div>
-            <p>Documento oficial emitido por el sistema MSM-CRISIS.</p>
+            <p>Documento oficial emitido por el sistema GEMA (Gestión de Eventos Meteorológicos Adversos).</p>
             <p>Centro de Operaciones de Emergencia (COE) • Municipalidad de General San Martín</p>
           </div>
           <div className="text-center w-48 border-t border-gray-600 pt-1">

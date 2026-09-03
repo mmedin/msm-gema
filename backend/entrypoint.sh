@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "Iniciando MSM-CRISIS Backend Entrypoint..."
+echo "Iniciando GEMA Backend Entrypoint..."
 
 echo "Aplicando esquema de base de datos con Prisma..."
 npx prisma db push --accept-data-loss

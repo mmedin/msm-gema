@@ -1,7 +1,7 @@
 {
-  "name": "msm-crisis-backend",
+  "name": "gema-backend",
   "version": "1.0.0",
-  "description": "Backend API para MSM-CRISIS Plan B Operativo (Municipalidad de Gral. San Martín)",
+  "description": "Backend API para GEMA - Gestión de Eventos Meteorológicos Adversos (Municipalidad de Gral. San Martín)",
   "main": "dist/index.js",
   "scripts": {
     "build": "prisma generate && tsc",
