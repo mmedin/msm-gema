@@ -41,7 +41,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api}
+        VITE_API_URL: ${VITE_API_URL:-/api}
     container_name: msm_crisis_frontend
     restart: always
     ports:
