@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum user_role {
+  ADMINISTRADOR
+  COORDINACION
+  OPERACION
+  CONSULTA
+}
+
+enum coordination_scope {
+  GENERAL
+  AREA
+}
+
+enum event_status {
+  PREPARACION
+  RESPUESTA
+  RECUPERACION
+  CERRADO
+}
+
+enum smn_alert {
+  SIN_ALERTA
+  AMARILLA
+  NARANJA
+  ROJA
+}
+
+enum notice_status {
+  RECIBIDO
+  VINCULADO
+  CONVERTIDO
+  DESCARTADO
+}
+
+enum priority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum incident_status {
+  RECIBIDO
+  PRIORIZADO
+  ASIGNADO
+  EN_ATENCION
+  IMPEDIDO
+  RESUELTO
+  CERRADO
+}
+
+enum task_status {
+  CREADA
+  ASIGNADA
+  ACEPTADA
+  EN_DESPLAZAMIENTO
+  EN_EJECUCION
+  IMPEDIDA
+  RESUELTA
+  VERIFICADA
+  CANCELADA
+}
+
+enum stay_kind {
+  TRANSITORIO
+  PERNOCTA
+}
+
+enum occupancy_direction {
+  INGRESO
+  EGRESO
+}
+
+enum life_risk {
+  SI
+  NO
+  DESCONOCIDO
+}
+
+enum trend {
+  EMPEORA
+  ESTABLE
+  MEJORA
+  DESCONOCIDA
+}
+
+model User {
+  id                 String              @id @default(uuid())
+  username           String              @unique
+  password_hash      String
+  name               String
+  role               user_role
+  coordination_scope coordination_scope?
+  area_id            String?
+  can_triage         Boolean             @default(false)
+  active             Boolean             @default(true)
+  created_at         DateTime            @default(now())
+
+  area               Area?               @relation(fields: [area_id], references: [id])
+  opened_events      Event[]             @relation("EventOpenedBy")
+  created_notices    Notice[]            @relation("NoticeCreatedBy")
+  created_incidents  Incident[]          @relation("IncidentCreatedBy")
+  triaged_incidents  Incident[]          @relation("IncidentTriagedBy")
+  area_coord_tasks   Task[]              @relation("TaskAreaCoordinator")
+  assigned_tasks     Task[]              @relation("TaskAssignee")
+  verified_tasks     Task[]              @relation("TaskVerifiedBy")
+  occupancy_logs     EvacuationOccupancyLog[] @relation("OccupancyCreatedBy")
+  audit_logs         AuditLog[]          @relation("AuditLogActor")
+
+  @@map("users")
+}
+
+model Area {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+
+  users     User[]
+  tasks     Task[]
+
+  @@map("areas")
+}
+
+model Event {
+  id           String       @id @default(uuid())
+  code         String       @unique
+  description  String
+  status       event_status
+  smn_alert    smn_alert
+  opened_at    DateTime     @default(now())
+  closed_at    DateTime?
+  opened_by_id String
+
+  opened_by    User         @relation("EventOpenedBy", fields: [opened_by_id], references: [id])
+  notices      Notice[]
+  incidents    Incident[]
+  tasks        Task[]
+  occupancy_logs EvacuationOccupancyLog[]
+
+  @@map("events")
+}
+
+model Notice {
+  id                String        @id @default(uuid())
+  event_id          String
+  received_at       DateTime      @default(now())
+  channel           String
+  source            String
+  contact           String?
+  location_text     String
+  lat               Float?
+  lng               Float?
+  location_pending  Boolean       @default(false)
+  description       String
+  life_risk         life_risk
+  trend             trend
+  status            notice_status @default(RECIBIDO)
+  incident_id       String?
+  evidence_filename String?
+  created_by_id     String
+  created_at        DateTime      @default(now())
+
+  event             Event         @relation(fields: [event_id], references: [id])
+  incident          Incident?     @relation(fields: [incident_id], references: [id])
+  created_by        User          @relation("NoticeCreatedBy", fields: [created_by_id], references: [id])
+
+  @@map("notices")
+}
+
+model Incident {
+  id               String          @id @default(uuid())
+  code             String
+  event_id         String
+  title            String
+  type_code        String
+  description      String
+  location_text    String
+  lat              Float?
+  lng              Float?
+  location_pending Boolean         @default(false)
+  life_risk        life_risk
+  trend            trend
+  priority         priority?
+  status           incident_status @default(RECIBIDO)
+  triage_by_id     String?
+  triaged_at       DateTime?
+  resolution_notes String?
+  closure_notes    String?
+  last_activity_at DateTime        @default(now())
+  created_by_id    String
+  created_at       DateTime        @default(now())
+
+  event            Event           @relation(fields: [event_id], references: [id])
+  created_by       User            @relation("IncidentCreatedBy", fields: [created_by_id], references: [id])
+  triage_by        User?           @relation("IncidentTriagedBy", fields: [triage_by_id], references: [id])
+  notices          Notice[]
+  tasks            Task[]
+
+  @@unique([event_id, code])
+  @@map("incidents")
+}
+
+model Task {
+  id                  String      @id @default(uuid())
+  code                String
+  incident_id         String
+  event_id            String
+  action              String
+  priority            priority
+  status              task_status @default(CREADA)
+  area_id             String
+  area_coordinator_id String?
+  assignee_id         String?
+  assigned_area_at    DateTime    @default(now())
+  assigned_person_at  DateTime?
+  accepted_at         DateTime?
+  dispatched_at       DateTime?
+  started_at          DateTime?
+  resolved_at         DateTime?
+  result_notes        String?
+  verified_at         DateTime?
+  verified_by_id      String?
+  impediment_reason   String?
+  impediment_next_action String?
+  last_activity_at    DateTime    @default(now())
+  created_at          DateTime    @default(now())
+
+  incident            Incident    @relation(fields: [incident_id], references: [id])
+  event               Event       @relation(fields: [event_id], references: [id])
+  area                Area        @relation(fields: [area_id], references: [id])
+  area_coordinator    User?       @relation("TaskAreaCoordinator", fields: [area_coordinator_id], references: [id])
+  assignee            User?       @relation("TaskAssignee", fields: [assignee_id], references: [id])
+  verified_by         User?       @relation("TaskVerifiedBy", fields: [verified_by_id], references: [id])
+
+  @@unique([event_id, code])
+  @@map("tasks")
+}
+
+model EvacuationCenter {
+  id              String         @id @default(uuid())
+  name            String
+  address         String
+  lat             Float?
+  lng             Float?
+  stay_kind       stay_kind
+  capacity        Int
+  equipment_notes String         @default("")
+  active          Boolean        @default(true)
+
+  occupancy_logs  EvacuationOccupancyLog[]
+
+  @@map("evacuation_centers")
+}
+
+model EvacuationOccupancyLog {
+  id             String              @id @default(uuid())
+  event_id       String
+  center_id      String
+  direction      occupancy_direction
+  people_count   Int
+  occupied_after Int
+  notes          String?
+  created_by_id  String
+  created_at     DateTime            @default(now())
+
+  event          Event               @relation(fields: [event_id], references: [id])
+  center         EvacuationCenter    @relation(fields: [center_id], references: [id])
+  created_by     User                @relation("OccupancyCreatedBy", fields: [created_by_id], references: [id])
+
+  @@map("evacuation_occupancy_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actor_id   String?
+  action     String
+  entity     String
+  entity_id  String
+  details    Json?
+  created_at DateTime @default(now())
+
+  actor      User?    @relation("AuditLogActor", fields: [actor_id], references: [id])
+
+  @@map("audit_logs")
+}

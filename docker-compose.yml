@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: msm_crisis_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-msm_crisis}
+      POSTGRES_USER: ${POSTGRES_USER:-crisis_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crisis_secret_2026}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crisis_user} -d ${POSTGRES_DB:-msm_crisis}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: msm_crisis_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-crisis_user}:${POSTGRES_PASSWORD:-crisis_secret_2026}@db:5432/${POSTGRES_DB:-msm_crisis}
+      JWT_SECRET: ${JWT_SECRET:-super_secreto_para_jwt_crisis_san_martin_2026}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api}
+    container_name: msm_crisis_frontend
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    volumes:
+      - uploads_data:/usr/share/nginx/html/uploads:ro
+
+volumes:
+  db_data:
+  uploads_data:

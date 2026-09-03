@@ -1,0 +1,121 @@
+{
+  "fuente_original": "docs/mapa-v4.html",
+  "data_version_en_html": "2026-07-03a",
+  "crs": "WGS84 / CRS84 (lon, lat)",
+  "capas": {
+    "zona-anegamientos-com.geojson": {
+      "bytes": 14282,
+      "features": 75,
+      "geoms": {
+        "Point": 75
+      }
+    },
+    "peligrosidad-cuenca-reconquista.geojson": {
+      "bytes": 1895097,
+      "features": 4,
+      "geoms": {
+        "MultiPolygon": 4
+      }
+    },
+    "arroyo-medrano-traza.geojson": {
+      "bytes": 4940,
+      "features": 21,
+      "geoms": {
+        "LineString": 21
+      }
+    },
+    "arroyo-medrano-puntos.geojson": {
+      "bytes": 889,
+      "features": 5,
+      "geoms": {
+        "Point": 5
+      }
+    },
+    "centros-evacuados-insumo.geojson": {
+      "bytes": 1232,
+      "features": 4,
+      "geoms": {
+        "Point": 4
+      }
+    },
+    "botes-emergencia.geojson": {
+      "bytes": 641,
+      "features": 3,
+      "geoms": {
+        "Point": 3
+      }
+    },
+    "exenciones-obras.geojson": {
+      "bytes": 2494,
+      "features": 7,
+      "geoms": {
+        "Polygon": 7
+      }
+    },
+    "tramos-afectados.geojson": {
+      "bytes": 20125,
+      "features": 77,
+      "geoms": {
+        "LineString": 77
+      }
+    },
+    "reclamos-octubre.geojson": {
+      "bytes": 119587,
+      "features": 173,
+      "geoms": {
+        "Point": 173
+      }
+    },
+    "reclamos-diciembre.geojson": {
+      "bytes": 145727,
+      "features": 210,
+      "geoms": {
+        "Point": 210
+      }
+    },
+    "zonas-operativas-dibujadas.geojson": {
+      "bytes": 11901,
+      "features": 27,
+      "geoms": {
+        "Polygon": 27
+      }
+    }
+  },
+  "reclamos_octubre_submotivos": {
+    "ANEGAMIENTO": 11,
+    "ARBOL CAIDO": 38,
+    "INUNDACIONES": 34,
+    "QUEJAS": 34,
+    "DESTAPACION DE SUMIDERO": 53,
+    "REPARACION DE SUMIDERO": 3
+  },
+  "reclamos_diciembre_submotivos": {
+    "ARBOL CAIDO": 74,
+    "INUNDACIONES": 24,
+    "DESTAPACION DE SUMIDERO": 48,
+    "REPARACION DE SUMIDERO": 2,
+    "QUEJAS": 62
+  },
+  "riesgo_com": {
+    "MUY ALTO": 15,
+    "ALTO": 48,
+    "MEDIO": 12
+  },
+  "reconquista_categorias": {
+    "Muy Baja a Nula": 1,
+    "Baja": 1,
+    "Media": 1,
+    "Alta": 1
+  },
+  "centros": [
+    "CEMEF",
+    "Centro de Oportunidades para la Inclusión",
+    "Club Deportivo San Andrés",
+    "Sociedad de Fomento Ciclón Fortín"
+  ],
+  "botes": 3,
+  "tramos_por_mes": {
+    "Diciembre": 47,
+    "Octubre": 30
+  }
+}

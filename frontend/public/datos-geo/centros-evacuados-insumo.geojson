@@ -1,0 +1,46 @@
+{
+  "type": "FeatureCollection",
+  "name": "centros-evacuados-insumo",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "CEMEF",
+        "direccion": "Sáenz Peña S/N, B1653 Villa José León Suárez, Provincia de Buenos Aires",
+        "tipo_en_mapa": "PRINCIPAL",
+        "stay_kind": "PERNOCTA"
+      },
+      "geometry": { "type": "Point", "coordinates": [-58.5802246, -34.5474555] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Centro de Oportunidades para la Inclusión",
+        "direccion": "Gral. N. Manuel Savio 2500, B1650 Villa Maipú, Provincia de Buenos Aires",
+        "tipo_en_mapa": "PRINCIPAL",
+        "stay_kind": "PERNOCTA"
+      },
+      "geometry": { "type": "Point", "coordinates": [-58.5219259, -34.5747796] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Club Deportivo San Andrés",
+        "direccion": "Int. Casares 2845, B1653 Villa San Andrés, Provincia de Buenos Aires",
+        "tipo_en_mapa": "TEMPORAL_BREVE",
+        "stay_kind": "TRANSITORIO"
+      },
+      "geometry": { "type": "Point", "coordinates": [-58.5445931, -34.558994] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Sociedad de Fomento Ciclón Fortín",
+        "direccion": "Pergamino 1551, B1650 Villa Lynch, Provincia de Buenos Aires",
+        "tipo_en_mapa": "TEMPORAL_BREVE",
+        "stay_kind": "TRANSITORIO"
+      },
+      "geometry": { "type": "Point", "coordinates": [-58.5398042, -34.5876698] }
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+import { Router, Request, Response } from 'express';
+import { prisma } from '../db';
+import { authenticateToken } from '../middleware/auth';
+import { upload } from '../middleware/upload';
+import { notice_status, life_risk, trend, incident_status } from '@prisma/client';
+
+export const noticesRouter = Router();
+
+// Listar avisos
+noticesRouter.get('/', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { event_id, status } = req.query;
+
+    const whereClause: any = {};
+    if (event_id) whereClause.event_id = String(event_id);
+    if (status) whereClause.status = status as notice_status;
+
+    const notices = await prisma.notice.findMany({
+      where: whereClause,
+      orderBy: { received_at: 'desc' },
+      include: {
+        incident: {
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            priority: true,
+            status: true,
+          },
+        },
+        created_by: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    res.json(notices);
+  } catch (error) {
+    console.error('Error al listar avisos:', error);
+    res.status(500).json({ error: 'Error al consultar avisos' });
+  }
+});
+
+// Crear nuevo aviso (+ evidencia opcional)
+noticesRouter.post(
+  '/',
+  authenticateToken,
+  upload.single('photo'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const {
+        event_id,
+        channel,
+        source,
+        contact,
+        location_text,
+        lat,
+        lng,
+        location_pending,
+        description,
+        life_risk: lifeRiskVal,
+        trend: trendVal,
+      } = req.body;
+
+      if (!event_id || !channel || !source || !description) {
+        res.status(400).json({ error: 'Faltan campos requeridos (event_id, channel, source, description)' });
+        return;
+      }
+
+      const isLocationPending = location_pending === 'true' || location_pending === true;
+      if (!isLocationPending && !location_text) {
+        res.status(400).json({ error: 'Debe ingresar una ubicación o marcar ubicación pendiente' });
+        return;
+      }
+
+      const evidenceFilename = req.file ? req.file.filename : null;
+
+      const notice = await prisma.notice.create({
+        data: {
+          event_id,
+          channel: channel || 'TELEFONO',
+          source: source || 'Vecino',
+          contact: contact || null,
+          location_text: location_text || 'Ubicación a determinar',
+          lat: lat ? parseFloat(lat) : null,
+          lng: lng ? parseFloat(lng) : null,
+          location_pending: isLocationPending,
+          description,
+          life_risk: (lifeRiskVal as life_risk) || life_risk.DESCONOCIDO,
+          trend: (trendVal as trend) || trend.DESCONOCIDA,
+          status: notice_status.RECIBIDO,
+          evidence_filename: evidenceFilename,
+          created_by_id: req.user!.id,
+        },
+        include: {
+          created_by: {
+            select: { id: true, name: true, username: true },
+          },
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actor_id: req.user!.id,
+          action: 'REGISTRAR_AVISO',
+          entity: 'NOTICE',
+          entity_id: notice.id,
+          details: { channel, source, location_text, life_risk: notice.life_risk },
+        },
+      });
+
+      res.status(201).json(notice);
+    } catch (error) {
+      console.error('Error al crear aviso:', error);
+      res.status(500).json({ error: 'Error al registrar aviso' });
+    }
+  }
+);
+
+// Convertir aviso en un nuevo incidente
+noticesRouter.patch('/:id/convert', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { title, type_code } = req.body;
+
+    const notice = await prisma.notice.findUnique({
+      where: { id },
+    });
+
+    if (!notice) {
+      res.status(404).json({ error: 'Aviso no encontrado' });
+      return;
+    }
+
+    if (notice.status === notice_status.CONVERTIDO || notice.status === notice_status.VINCULADO) {
+      res.status(400).json({ error: 'Este aviso ya fue procesado o vinculado previamente' });
+      return;
+    }
+
+    // Generar código único para el incidente dentro del evento
+    const countIncidents = await prisma.incident.count({
+      where: { event_id: notice.event_id },
+    });
+    const code = `INC-${String(countIncidents + 1).padStart(3, '0')}`;
+
+    // Crear nuevo incidente con datos del aviso
+    const incident = await prisma.incident.create({
+      data: {
+        code,
+        event_id: notice.event_id,
+        title: title || `Incidente: ${notice.description.slice(0, 50)}...`,
+        type_code: type_code || 'INUNDACION_ANEGAMIENTO',
+        description: notice.description,
+        location_text: notice.location_text,
+        lat: notice.lat,
+        lng: notice.lng,
+        location_pending: notice.location_pending,
+        life_risk: notice.life_risk,
+        trend: notice.trend,
+        status: incident_status.RECIBIDO,
+        created_by_id: req.user!.id,
+        last_activity_at: new Date(),
+      },
+    });
+
+    // Actualizar aviso
+    const updatedNotice = await prisma.notice.update({
+      where: { id },
+      data: {
+        status: notice_status.CONVERTIDO,
+        incident_id: incident.id,
+      },
+      include: {
+        incident: true,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actor_id: req.user!.id,
+        action: 'CONVERTIR_AVISO_A_INCIDENTE',
+        entity: 'NOTICE',
+        entity_id: notice.id,
+        details: { incident_id: incident.id, incident_code: incident.code },
+      },
+    });
+
+    res.json({ notice: updatedNotice, incident });
+  } catch (error) {
+    console.error('Error al convertir aviso:', error);
+    res.status(500).json({ error: 'Error al convertir aviso a incidente' });
+  }
+});
+
+// Vincular aviso a un incidente existente
+noticesRouter.patch('/:id/link', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { incident_id } = req.body;
+
+    if (!incident_id) {
+      res.status(400).json({ error: 'Debe especificar el incident_id al cual vincular' });
+      return;
+    }
+
+    const notice = await prisma.notice.findUnique({ where: { id } });
+    if (!notice) {
+      res.status(404).json({ error: 'Aviso no encontrado' });
+      return;
+    }
+
+    const incident = await prisma.incident.findUnique({ where: { id: incident_id } });
+    if (!incident) {
+      res.status(404).json({ error: 'Incidente destino no encontrado' });
+      return;
+    }
+
+    const updatedNotice = await prisma.notice.update({
+      where: { id },
+      data: {
+        status: notice_status.VINCULADO,
+        incident_id: incident.id,
+      },
+      include: {
+        incident: true,
+      },
+    });
+
+    // Actualizar última actividad del incidente
+    await prisma.incident.update({
+      where: { id: incident.id },
+      data: { last_activity_at: new Date() },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actor_id: req.user!.id,
+        action: 'VINCULAR_AVISO_A_INCIDENTE',
+        entity: 'NOTICE',
+        entity_id: notice.id,
+        details: { incident_id: incident.id, incident_code: incident.code },
+      },
+    });
+
+    res.json(updatedNotice);
+  } catch (error) {
+    console.error('Error al vincular aviso:', error);
+    res.status(500).json({ error: 'Error al vincular aviso' });
+  }
+});
+
+// Descartar aviso
+noticesRouter.patch('/:id/discard', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const notice = await prisma.notice.update({
+      where: { id },
+      data: {
+        status: notice_status.DESCARTADO,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actor_id: req.user!.id,
+        action: 'DESCARTAR_AVISO',
+        entity: 'NOTICE',
+        entity_id: notice.id,
+      },
+    });
+
+    res.json(notice);
+  } catch (error) {
+    console.error('Error al descartar aviso:', error);
+    res.status(500).json({ error: 'Error al descartar aviso' });
+  }
+});
