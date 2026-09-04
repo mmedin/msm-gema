@@ -23,13 +23,9 @@
   background: #3b82f6;
 }
 
-/* Filtro Dark Mode para teselas libres de OpenStreetMap (sin marcas de agua) */
+/* Fondo oscuro del mapa para evitar parpadeos de carga */
 .leaflet-container {
   background-color: #0b111e !important;
-}
-
-.map-tiles-dark {
-  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) !important;
 }
 
 /* Elementos táctiles optimizados para campo */
