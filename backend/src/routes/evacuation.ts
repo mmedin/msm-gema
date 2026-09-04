@@ -23,36 +23,69 @@ evacuationRouter.get('/', authenticateToken, async (req: Request, res: Response)
       if (activeEvent) targetEventId = activeEvent.id;
     }
 
-    const centers = await prisma.evacuationCenter.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' },
-    });
+    type CenterWithOccupancy = {
+      id: string;
+      name: string;
+      address: string;
+      lat: number | null;
+      lng: number | null;
+      stay_kind: any;
+      capacity: number;
+      equipment_notes: string;
+      active: boolean;
+      current_occupied: number;
+    };
 
-    const enrichedCenters = await Promise.all(
-      centers.map(async (center) => {
-        let occupied = 0;
-        if (targetEventId) {
-          const lastLog = await prisma.evacuationOccupancyLog.findFirst({
-            where: {
-              center_id: center.id,
-              event_id: targetEventId,
-            },
-            orderBy: { created_at: 'desc' },
-          });
-          if (lastLog) {
-            occupied = lastLog.occupied_after;
-          }
-        }
+    let centersWithOccupancy: CenterWithOccupancy[];
 
-        return {
-          ...center,
-          current_occupied: occupied,
-          available_capacity: Math.max(0, center.capacity - occupied),
-          capacity_exceeded: occupied > center.capacity,
-          percentage: center.capacity > 0 ? Math.round((occupied / center.capacity) * 100) : 0,
-        };
-      })
-    );
+    if (targetEventId) {
+      centersWithOccupancy = await prisma.$queryRaw<CenterWithOccupancy[]>`
+        SELECT 
+          c.id,
+          c.name,
+          c.address,
+          c.lat,
+          c.lng,
+          c.stay_kind,
+          c.capacity,
+          c.equipment_notes,
+          c.active,
+          COALESCE(l.occupied_after, 0)::int AS current_occupied
+        FROM evacuation_centers c
+        LEFT JOIN (
+          SELECT DISTINCT ON (center_id) center_id, occupied_after
+          FROM evacuation_occupancy_logs
+          WHERE event_id = ${targetEventId}
+          ORDER BY center_id, created_at DESC
+        ) l ON l.center_id = c.id
+        WHERE c.active = true
+        ORDER BY c.name ASC
+      `;
+    } else {
+      centersWithOccupancy = await prisma.$queryRaw<CenterWithOccupancy[]>`
+        SELECT 
+          c.id,
+          c.name,
+          c.address,
+          c.lat,
+          c.lng,
+          c.stay_kind,
+          c.capacity,
+          c.equipment_notes,
+          c.active,
+          0::int AS current_occupied
+        FROM evacuation_centers c
+        WHERE c.active = true
+        ORDER BY c.name ASC
+      `;
+    }
+
+    const enrichedCenters = centersWithOccupancy.map((center) => ({
+      ...center,
+      available_capacity: Math.max(0, center.capacity - center.current_occupied),
+      capacity_exceeded: center.current_occupied > center.capacity,
+      percentage: center.capacity > 0 ? Math.round((center.current_occupied / center.capacity) * 100) : 0,
+    }));
 
     res.json(enrichedCenters);
   } catch (error) {

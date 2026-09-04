@@ -9,7 +9,19 @@ export const tasksRouter = Router();
 // Listar tareas
 tasksRouter.get('/', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { event_id, area_id, assignee_id, incident_id, status, my_tasks, for_distribution, for_verification } = req.query;
+    const {
+      event_id,
+      area_id,
+      assignee_id,
+      incident_id,
+      status,
+      my_tasks,
+      for_distribution,
+      for_verification,
+      limit,
+      offset,
+      cursor,
+    } = req.query;
 
     const whereClause: any = {};
     if (event_id) whereClause.event_id = String(event_id);
@@ -41,31 +53,46 @@ tasksRouter.get('/', authenticateToken, async (req: Request, res: Response): Pro
       whereClause.status = task_status.RESUELTA;
     }
 
-    const tasks = await prisma.task.findMany({
-      where: whereClause,
-      orderBy: [
-        { priority: 'asc' }, // P1 primero
-        { last_activity_at: 'desc' },
-      ],
-      include: {
-        incident: {
-          select: {
-            id: true,
-            code: true,
-            title: true,
-            priority: true,
-            location_text: true,
-            lat: true,
-            lng: true,
-            status: true,
+    // Paginación con límite por defecto razonable de 50
+    const take = limit === 'all' ? undefined : limit ? Math.min(Math.max(1, parseInt(String(limit), 10)), 500) : 50;
+    const skip = offset ? Math.max(0, parseInt(String(offset), 10)) : cursor ? 1 : undefined;
+    const cursorObj = cursor ? { id: String(cursor) } : undefined;
+
+    const [totalCount, tasks] = await Promise.all([
+      prisma.task.count({ where: whereClause }),
+      prisma.task.findMany({
+        where: whereClause,
+        take,
+        skip,
+        cursor: cursorObj,
+        orderBy: [
+          { priority: 'asc' }, // P1 primero
+          { last_activity_at: 'desc' },
+        ],
+        include: {
+          incident: {
+            select: {
+              id: true,
+              code: true,
+              title: true,
+              priority: true,
+              location_text: true,
+              lat: true,
+              lng: true,
+              status: true,
+            },
           },
+          area: true,
+          area_coordinator: { select: { id: true, name: true, username: true } },
+          assignee: { select: { id: true, name: true, username: true } },
+          verified_by: { select: { id: true, name: true, username: true } },
         },
-        area: true,
-        area_coordinator: { select: { id: true, name: true, username: true } },
-        assignee: { select: { id: true, name: true, username: true } },
-        verified_by: { select: { id: true, name: true, username: true } },
-      },
-    });
+      }),
+    ]);
+
+    res.setHeader('X-Total-Count', totalCount.toString());
+    res.setHeader('X-Limit', (take ?? totalCount).toString());
+    res.setHeader('X-Offset', (skip ?? 0).toString());
 
     res.json(tasks);
   } catch (error) {

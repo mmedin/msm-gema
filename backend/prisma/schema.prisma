@@ -173,6 +173,9 @@ model Notice {
   incident          Incident?     @relation(fields: [incident_id], references: [id])
   created_by        User          @relation("NoticeCreatedBy", fields: [created_by_id], references: [id])
 
+  @@index([event_id])
+  @@index([status])
+  @@index([incident_id])
   @@map("notices")
 }
 
@@ -206,6 +209,9 @@ model Incident {
   tasks            Task[]
 
   @@unique([event_id, code])
+  @@index([event_id, status])
+  @@index([priority])
+  @@index([last_activity_at])
   @@map("incidents")
 }
 
@@ -242,6 +248,11 @@ model Task {
   verified_by         User?       @relation("TaskVerifiedBy", fields: [verified_by_id], references: [id])
 
   @@unique([event_id, code])
+  @@index([event_id, status])
+  @@index([area_id])
+  @@index([assignee_id])
+  @@index([priority])
+  @@index([last_activity_at])
   @@map("tasks")
 }
 
@@ -276,6 +287,7 @@ model EvacuationOccupancyLog {
   center         EvacuationCenter    @relation(fields: [center_id], references: [id])
   created_by     User                @relation("OccupancyCreatedBy", fields: [created_by_id], references: [id])
 
+  @@index([center_id, event_id, created_at])
   @@map("evacuation_occupancy_logs")
 }
 
@@ -290,5 +302,7 @@ model AuditLog {
 
   actor      User?    @relation("AuditLogActor", fields: [actor_id], references: [id])
 
+  @@index([actor_id])
+  @@index([entity, entity_id])
   @@map("audit_logs")
 }

@@ -30,147 +30,148 @@ dashboardRouter.get('/stats', authenticateToken, async (req: Request, res: Respo
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
     const twoHoursAgo = new Date(now.getTime() - 120 * 60 * 1000);
 
-    // 1. Contadores de incidentes P1 y P2 activos
-    const activeP1Count = await prisma.incident.count({
-      where: {
-        event_id: eventId,
-        priority: priority.P1,
-        status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
-      },
-    });
+    // Ejecución concurrente de todas las métricas operativas con eliminación de N+1
+    const [
+      activeP1Count,
+      activeP2Count,
+      impededTasksCount,
+      unassignedTasksCount,
+      inactiveP1P2Incidents,
+      inactiveP1P2Tasks,
+      inactiveP3P4Incidents,
+      inactiveP3P4Tasks,
+      evacTotalsRows,
+      areasBreakdown,
+      totalIncidents,
+      totalNotices,
+      pendingNotices,
+    ] = await Promise.all([
+      // 1. Contadores de incidentes P1 y P2 activos
+      prisma.incident.count({
+        where: {
+          event_id: eventId,
+          priority: priority.P1,
+          status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
+        },
+      }),
+      prisma.incident.count({
+        where: {
+          event_id: eventId,
+          priority: priority.P2,
+          status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
+        },
+      }),
 
-    const activeP2Count = await prisma.incident.count({
-      where: {
-        event_id: eventId,
-        priority: priority.P2,
-        status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
-      },
-    });
+      // 2. Tareas impedidas
+      prisma.task.count({
+        where: {
+          event_id: eventId,
+          status: task_status.IMPEDIDA,
+        },
+      }),
 
-    // 2. Tareas impedidas
-    const impededTasksCount = await prisma.task.count({
-      where: {
-        event_id: eventId,
-        status: task_status.IMPEDIDA,
-      },
-    });
+      // 3. Tareas sin asignar a persona (Pendientes etapa 2)
+      prisma.task.count({
+        where: {
+          event_id: eventId,
+          assignee_id: null,
+          status: { in: [task_status.CREADA, task_status.ASIGNADA] },
+        },
+      }),
 
-    // 3. Tareas sin asignar a persona (Pendientes etapa 2)
-    const unassignedTasksCount = await prisma.task.count({
-      where: {
-        event_id: eventId,
-        assignee_id: null,
-        status: { in: [task_status.CREADA, task_status.ASIGNADA] },
-      },
-    });
+      // 4. Semáforo de Inactividad
+      prisma.incident.findMany({
+        where: {
+          event_id: eventId,
+          priority: { in: [priority.P1, priority.P2] },
+          status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
+          last_activity_at: { lt: thirtyMinutesAgo },
+        },
+        select: { id: true, code: true, title: true, priority: true, last_activity_at: true },
+      }),
+      prisma.task.findMany({
+        where: {
+          event_id: eventId,
+          priority: { in: [priority.P1, priority.P2] },
+          status: { notIn: [task_status.VERIFICADA, task_status.CANCELADA] },
+          last_activity_at: { lt: thirtyMinutesAgo },
+        },
+        select: { id: true, code: true, action: true, priority: true, last_activity_at: true },
+      }),
+      prisma.incident.findMany({
+        where: {
+          event_id: eventId,
+          priority: { in: [priority.P3, priority.P4] },
+          status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
+          last_activity_at: { lt: twoHoursAgo },
+        },
+        select: { id: true, code: true, title: true, priority: true, last_activity_at: true },
+      }),
+      prisma.task.findMany({
+        where: {
+          event_id: eventId,
+          priority: { in: [priority.P3, priority.P4] },
+          status: { notIn: [task_status.VERIFICADA, task_status.CANCELADA] },
+          last_activity_at: { lt: twoHoursAgo },
+        },
+        select: { id: true, code: true, action: true, priority: true, last_activity_at: true },
+      }),
 
-    // 4. Semáforo de Inactividad
-    // P1/P2 > 30m sin actividad
-    const inactiveP1P2Incidents = await prisma.incident.findMany({
-      where: {
-        event_id: eventId,
-        priority: { in: [priority.P1, priority.P2] },
-        status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
-        last_activity_at: { lt: thirtyMinutesAgo },
-      },
-      select: { id: true, code: true, title: true, priority: true, last_activity_at: true },
-    });
+      // 5. Centros de evacuados y ocupación total (Optimización N+1 con DISTINCT ON)
+      prisma.$queryRaw<Array<{ totalCapacity: number; totalOccupied: number }>>`
+        SELECT
+          COALESCE(SUM(c.capacity), 0)::int AS "totalCapacity",
+          COALESCE(SUM(l.occupied_after), 0)::int AS "totalOccupied"
+        FROM evacuation_centers c
+        LEFT JOIN (
+          SELECT DISTINCT ON (center_id) center_id, occupied_after
+          FROM evacuation_occupancy_logs
+          WHERE event_id = ${eventId}
+          ORDER BY center_id, created_at DESC
+        ) l ON l.center_id = c.id
+        WHERE c.active = true
+      `,
 
-    const inactiveP1P2Tasks = await prisma.task.findMany({
-      where: {
-        event_id: eventId,
-        priority: { in: [priority.P1, priority.P2] },
-        status: { notIn: [task_status.VERIFICADA, task_status.CANCELADA] },
-        last_activity_at: { lt: thirtyMinutesAgo },
-      },
-      select: { id: true, code: true, action: true, priority: true, last_activity_at: true },
-    });
+      // 6. Desglose por Área (Optimización N+1 con una única consulta agrupada)
+      prisma.$queryRaw<
+        Array<{
+          id: string;
+          code: string;
+          name: string;
+          total: number;
+          pendingDistribution: number;
+          inExecution: number;
+          resolved: number;
+          verified: number;
+          impeded: number;
+        }>
+      >`
+        SELECT
+          a.id,
+          a.code,
+          a.name,
+          COUNT(t.id)::int AS total,
+          COUNT(CASE WHEN t.assignee_id IS NULL AND t.status IN ('CREADA', 'ASIGNADA') THEN 1 END)::int AS "pendingDistribution",
+          COUNT(CASE WHEN t.status IN ('ACEPTADA', 'EN_DESPLAZAMIENTO', 'EN_EJECUCION') THEN 1 END)::int AS "inExecution",
+          COUNT(CASE WHEN t.status = 'RESUELTA' THEN 1 END)::int AS resolved,
+          COUNT(CASE WHEN t.status = 'VERIFICADA' THEN 1 END)::int AS verified,
+          COUNT(CASE WHEN t.status = 'IMPEDIDA' THEN 1 END)::int AS impeded
+        FROM areas a
+        LEFT JOIN tasks t ON t.area_id = a.id AND t.event_id = ${eventId}
+        WHERE a.active = true
+        GROUP BY a.id, a.code, a.name
+        ORDER BY a.name ASC
+      `,
 
-    // P3/P4 > 2h sin actividad
-    const inactiveP3P4Incidents = await prisma.incident.findMany({
-      where: {
-        event_id: eventId,
-        priority: { in: [priority.P3, priority.P4] },
-        status: { notIn: [incident_status.RESUELTO, incident_status.CERRADO] },
-        last_activity_at: { lt: twoHoursAgo },
-      },
-      select: { id: true, code: true, title: true, priority: true, last_activity_at: true },
-    });
+      // 7. Totales generales de incidentes y avisos
+      prisma.incident.count({ where: { event_id: eventId } }),
+      prisma.notice.count({ where: { event_id: eventId } }),
+      prisma.notice.count({ where: { event_id: eventId, status: 'RECIBIDO' } }),
+    ]);
 
-    const inactiveP3P4Tasks = await prisma.task.findMany({
-      where: {
-        event_id: eventId,
-        priority: { in: [priority.P3, priority.P4] },
-        status: { notIn: [task_status.VERIFICADA, task_status.CANCELADA] },
-        last_activity_at: { lt: twoHoursAgo },
-      },
-      select: { id: true, code: true, action: true, priority: true, last_activity_at: true },
-    });
-
-    // 5. Centros de evacuados y ocupación total
-    const centers = await prisma.evacuationCenter.findMany({ where: { active: true } });
-    let totalCapacity = 0;
-    let totalOccupied = 0;
-
-    for (const c of centers) {
-      totalCapacity += c.capacity;
-      const lastLog = await prisma.evacuationOccupancyLog.findFirst({
-        where: { center_id: c.id, event_id: eventId },
-        orderBy: { created_at: 'desc' },
-      });
-      if (lastLog) {
-        totalOccupied += lastLog.occupied_after;
-      }
-    }
-
-    // 6. Desglose por Área
-    const areas = await prisma.area.findMany({ where: { active: true } });
-    const areasBreakdown = await Promise.all(
-      areas.map(async (a) => {
-        const total = await prisma.task.count({ where: { event_id: eventId, area_id: a.id } });
-        const pendingDistribution = await prisma.task.count({
-          where: {
-            event_id: eventId,
-            area_id: a.id,
-            assignee_id: null,
-            status: { in: [task_status.CREADA, task_status.ASIGNADA] },
-          },
-        });
-        const inExecution = await prisma.task.count({
-          where: {
-            event_id: eventId,
-            area_id: a.id,
-            status: { in: [task_status.ACEPTADA, task_status.EN_DESPLAZAMIENTO, task_status.EN_EJECUCION] },
-          },
-        });
-        const resolved = await prisma.task.count({
-          where: { event_id: eventId, area_id: a.id, status: task_status.RESUELTA },
-        });
-        const verified = await prisma.task.count({
-          where: { event_id: eventId, area_id: a.id, status: task_status.VERIFICADA },
-        });
-        const impeded = await prisma.task.count({
-          where: { event_id: eventId, area_id: a.id, status: task_status.IMPEDIDA },
-        });
-
-        return {
-          id: a.id,
-          code: a.code,
-          name: a.name,
-          total,
-          pendingDistribution,
-          inExecution,
-          resolved,
-          verified,
-          impeded,
-        };
-      })
-    );
-
-    // 7. Totales generales de incidentes y avisos
-    const totalIncidents = await prisma.incident.count({ where: { event_id: eventId } });
-    const totalNotices = await prisma.notice.count({ where: { event_id: eventId } });
-    const pendingNotices = await prisma.notice.count({ where: { event_id: eventId, status: 'RECIBIDO' } });
+    const evacTotals = evacTotalsRows[0];
+    const totalCapacity = Number(evacTotals?.totalCapacity || 0);
+    const totalOccupied = Number(evacTotals?.totalOccupied || 0);
 
     res.json({
       event: targetEvent,

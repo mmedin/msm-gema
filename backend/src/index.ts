@@ -75,6 +75,7 @@ app.use(
       return callback(new Error(`Origen no permitido por política CORS: ${origin}`));
     },
     credentials: true,
+    exposedHeaders: ['X-Total-Count', 'X-Limit', 'X-Offset'],
   })
 );
 app.use(morgan('combined'));

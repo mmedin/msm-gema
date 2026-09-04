@@ -6,6 +6,10 @@
 
 ---
 
+## 0. CONTROL INICIO
+
+Cuando termines una tarea, en tu mensaje al usuario, el primer renglón siempre dirá "INICIO DE MI REPORTE".
+
 ## 1. OBJETIVO Y FILOSOFÍA DEL SISTEMA
 
 El sistema reemplaza la coordinación informal y fragmentada por WhatsApp durante tormentas e inundaciones severas por una **plataforma operativa común, centralizada, móvil-primero y de alta velocidad**.
@@ -171,3 +175,7 @@ curl http://localhost:4000/api/evacuation-centers \
 
 - Todo con Docker, salvo típicos de terminal, como curl, git, cat, ls, etc.
 - No queremos ensuciar las computadores de desarrollo con lenguajes de distintas versiones, componentes, etc. 
+
+## 99. CONTROL FIN
+
+Cuando termines una tarea, en tu mensaje al usuario, el último renglón siempre dirá "FIN DE MI REPORTE".

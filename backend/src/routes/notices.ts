@@ -10,34 +10,49 @@ export const noticesRouter = Router();
 // Listar avisos
 noticesRouter.get('/', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { event_id, status } = req.query;
+    const { event_id, status, limit, offset, cursor } = req.query;
 
     const whereClause: any = {};
     if (event_id) whereClause.event_id = String(event_id);
     if (status) whereClause.status = status as notice_status;
 
-    const notices = await prisma.notice.findMany({
-      where: whereClause,
-      orderBy: { received_at: 'desc' },
-      include: {
-        incident: {
-          select: {
-            id: true,
-            code: true,
-            title: true,
-            priority: true,
-            status: true,
+    // Paginación con límite por defecto razonable de 50
+    const take = limit === 'all' ? undefined : limit ? Math.min(Math.max(1, parseInt(String(limit), 10)), 500) : 50;
+    const skip = offset ? Math.max(0, parseInt(String(offset), 10)) : cursor ? 1 : undefined;
+    const cursorObj = cursor ? { id: String(cursor) } : undefined;
+
+    const [totalCount, notices] = await Promise.all([
+      prisma.notice.count({ where: whereClause }),
+      prisma.notice.findMany({
+        where: whereClause,
+        take,
+        skip,
+        cursor: cursorObj,
+        orderBy: { received_at: 'desc' },
+        include: {
+          incident: {
+            select: {
+              id: true,
+              code: true,
+              title: true,
+              priority: true,
+              status: true,
+            },
+          },
+          created_by: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+            },
           },
         },
-        created_by: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-      },
-    });
+      }),
+    ]);
+
+    res.setHeader('X-Total-Count', totalCount.toString());
+    res.setHeader('X-Limit', (take ?? totalCount).toString());
+    res.setHeader('X-Offset', (skip ?? 0).toString());
 
     res.json(notices);
   } catch (error) {

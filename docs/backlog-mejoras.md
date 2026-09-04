@@ -13,11 +13,11 @@
 | 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 7 | 7 | Completado |
 | 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | 3 | Completado |
 | 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 5 | 5 | Completado |
-| 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 0 | Pendiente |
+| 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 3 | Completado |
 | 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | 0 | Pendiente |
 | 🟡 **P3** | [Frontend, UX Móvil y Navegación](#6-frontend-ux-móvil-y-navegación-p3) | 5 | 0 | Pendiente |
 | 🟡 **P3** | [Arquitectura y Calidad de Código](#7-arquitectura-y-calidad-de-código-p3) | 5 | 0 | Pendiente |
-| 🟡 **P3** | [Testing Automatizado y Tooling](#8-testing-automatizado-y-tooling-p3) | 2 | 0 | Pendiente |
+| 🟡 **P3** | [Testing Automatizado y Tooling](#8-testing-automatizado-y-tooling-p3) | 3 | 0 | Pendiente |
 
 ---
 
@@ -160,33 +160,33 @@
 
 ## 4. Rendimiento y Optimización de Base de Datos (P2)
 
-### [PERF-01] Eliminación del problema N+1 en Dashboard y Refugios
+### [PERF-01] ✅ Eliminación del problema N+1 en Dashboard y Refugios
 * **Archivos involucrados:** `backend/src/routes/dashboard.ts`, `backend/src/routes/evacuation.ts`
 * **Problema:**
   - `/api/dashboard/stats` ejecuta más de 40 consultas individuales a la base de datos por cada petición: un bucle `for` sobre áreas con 6 `prisma.task.count()` por cada área (~30 queries solo el desglose), más queries de inactividad, contadores generales y ocupación de centros.
   - `/api/evacuation-centers` ejecuta `Promise.all` con 1 `findFirst` por cada centro para obtener la ocupación.
   - Al realizarse polling cada 20 segundos desde múltiples clientes, la base de datos sufre degradación innecesaria.
 * **Criterios de Aceptación:**
-  - [ ] Los totales por área del dashboard se resuelven en una única consulta agrupada (`groupBy` o agregación SQL nativa).
-  - [ ] La ocupación actual de los centros de evacuados se consulta mediante una sola query agregada (`DISTINCT ON` en Postgres o guardando `current_occupied` desnormalizado en la tabla `evacuation_centers`).
+  - [x] Los totales por área del dashboard se resuelven en una única consulta agrupada (`groupBy` o agregación SQL nativa).
+  - [x] La ocupación actual de los centros de evacuados se consulta mediante una sola query agregada (`DISTINCT ON` en Postgres o guardando `current_occupied` desnormalizado en la tabla `evacuation_centers`).
 
-### [PERF-02] Índices faltantes en PostgreSQL (Prisma Schema)
+### [PERF-02] ✅ Índices faltantes en PostgreSQL (Prisma Schema)
 * **Archivos involucrados:** `backend/prisma/schema.prisma`
 * **Problema:** Prisma crea índices automáticos solo para `@id`, `@unique` y `@@unique`. Las claves foráneas y columnas de filtro frecuente carecen de índices, obligando a sequential scans en tablas que crecen durante cada evento.
 * **Criterios de Aceptación:**
-  - [ ] Se agregan índices explícitos:
+  - [x] Se agregan índices explícitos:
     - `Notice`: `@@index([event_id])`, `@@index([status])`, `@@index([incident_id])`.
     - `Incident`: `@@index([event_id, status])`, `@@index([priority])`, `@@index([last_activity_at])`.
     - `Task`: `@@index([event_id, status])`, `@@index([area_id])`, `@@index([assignee_id])`, `@@index([priority])`, `@@index([last_activity_at])`.
     - `EvacuationOccupancyLog`: `@@index([center_id, event_id, created_at])`.
     - `AuditLog`: `@@index([actor_id])`, `@@index([entity, entity_id])`.
 
-### [PERF-03] Paginación en endpoints de alta frecuencia
+### [PERF-03] ✅ Paginación en endpoints de alta frecuencia
 * **Archivos involucrados:** `backend/src/routes/incidents.ts`, `backend/src/routes/tasks.ts`, `backend/src/routes/notices.ts`
 * **Problema:** Todos los listados traen la totalidad de los registros de la base sin `take`/`skip`, lo cual degradará el consumo de memoria y el tiempo de respuesta en tormentas con cientos o miles de registros.
 * **Criterios de Aceptación:**
-  - [ ] Los endpoints soportan parámetros opcionales `limit` (con valor por defecto razonable, ej. 50) y `cursor` o `offset`.
-  - [ ] Los filtros principales respetan la paginación sin degradar la visualización en frontend.
+  - [x] Los endpoints soportan parámetros opcionales `limit` (con valor por defecto razonable, ej. 50) y `cursor` o `offset`.
+  - [x] Los filtros principales respetan la paginación sin degradar la visualización en frontend.
 
 ---
 
@@ -314,6 +314,13 @@
 * **Criterios de Aceptación:**
   - [ ] Se configuran ESLint y Prettier con scripts de validación (`npm run lint`, `npm run format:check`).
   - [ ] Se habilitan en el frontend las opciones `noUnusedLocals` y `noUnusedParameters` en `tsconfig.json` (actualmente están en `false`).
+
+### [TEST-03] Idempotencia en suite de pruebas de seguridad (`test-security.ts`)
+* **Archivos involucrados:** `backend/scripts/test-security.ts`
+* **Problema:** `test-security.ts` falla si se re-ejecuta sin reiniciar la base de datos. Utiliza un nombre de usuario estático hardcodeado (`test.sec06`) para probar la validación de complejidad de contraseña y la creación de usuarios. En la primera ejecución se crea satisfactoriamente, pero en ejecuciones subsiguientes el endpoint responde `400 "El nombre de usuario ya existe"`, interrumpiendo la suite.
+* **Criterios de Aceptación:**
+  - [ ] Generar nombres de usuario dinámicos/únicos por ejecución (ej. `test.sec06_${Date.now()}`) o realizar limpieza/desactivación del usuario al finalizar el test suite (teardown).
+  - [ ] La suite puede ejecutarse múltiples veces consecutivas de forma idempotente sin requerir reinicio o purga de la base de datos.
 
 ---
 

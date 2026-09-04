@@ -113,7 +113,7 @@ export const MapaOperativo: React.FC = () => {
     const fetchData = async () => {
       try {
         const [incidentsData, centersData] = await Promise.all([
-          api.getIncidents({ event_id: activeEvent?.id }),
+          api.getIncidents({ event_id: activeEvent?.id, limit: 200 }),
           api.getEvacuationCenters(activeEvent?.id),
         ]);
         setIncidents(incidentsData);

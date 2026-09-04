@@ -102,7 +102,7 @@ export const api = {
     }),
 
   // Avisos
-  getNotices: (params?: { event_id?: string; status?: string }) => {
+  getNotices: (params?: { event_id?: string; status?: string; limit?: number | string; offset?: number; cursor?: string }) => {
     const query = new URLSearchParams(params as any).toString();
     return request<Notice[]>(`/notices${query ? `?${query}` : ''}`);
   },
@@ -127,7 +127,7 @@ export const api = {
     }),
 
   // Incidentes
-  getIncidents: (params?: { event_id?: string; status?: string; priority?: string }) => {
+  getIncidents: (params?: { event_id?: string; status?: string; priority?: string; limit?: number | string; offset?: number; cursor?: string }) => {
     const query = new URLSearchParams(params as any).toString();
     return request<Incident[]>(`/incidents${query ? `?${query}` : ''}`);
   },
@@ -152,7 +152,7 @@ export const api = {
     }),
 
   // Tareas
-  getTasks: (params?: Record<string, string | boolean>) => {
+  getTasks: (params?: Record<string, string | boolean | number>) => {
     const query = new URLSearchParams(params as any).toString();
     return request<Task[]>(`/tasks${query ? `?${query}` : ''}`);
   },

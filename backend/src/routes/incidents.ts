@@ -9,37 +9,52 @@ export const incidentsRouter = Router();
 // Listar incidentes
 incidentsRouter.get('/', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { event_id, status, priority: prioFilter } = req.query;
+    const { event_id, status, priority: prioFilter, limit, offset, cursor } = req.query;
 
     const whereClause: any = {};
     if (event_id) whereClause.event_id = String(event_id);
     if (status) whereClause.status = status as incident_status;
     if (prioFilter) whereClause.priority = prioFilter as priority;
 
-    const incidents = await prisma.incident.findMany({
-      where: whereClause,
-      orderBy: [
-        { priority: 'asc' }, // P1 primero
-        { last_activity_at: 'desc' },
-      ],
-      include: {
-        created_by: { select: { id: true, name: true, username: true } },
-        triage_by: { select: { id: true, name: true, username: true } },
-        tasks: {
-          select: {
-            id: true,
-            status: true,
-            area: { select: { id: true, code: true, name: true } },
+    // Paginación con límite por defecto razonable de 50
+    const take = limit === 'all' ? undefined : limit ? Math.min(Math.max(1, parseInt(String(limit), 10)), 500) : 50;
+    const skip = offset ? Math.max(0, parseInt(String(offset), 10)) : cursor ? 1 : undefined;
+    const cursorObj = cursor ? { id: String(cursor) } : undefined;
+
+    const [totalCount, incidents] = await Promise.all([
+      prisma.incident.count({ where: whereClause }),
+      prisma.incident.findMany({
+        where: whereClause,
+        take,
+        skip,
+        cursor: cursorObj,
+        orderBy: [
+          { priority: 'asc' }, // P1 primero
+          { last_activity_at: 'desc' },
+        ],
+        include: {
+          created_by: { select: { id: true, name: true, username: true } },
+          triage_by: { select: { id: true, name: true, username: true } },
+          tasks: {
+            select: {
+              id: true,
+              status: true,
+              area: { select: { id: true, code: true, name: true } },
+            },
+          },
+          _count: {
+            select: {
+              notices: true,
+              tasks: true,
+            },
           },
         },
-        _count: {
-          select: {
-            notices: true,
-            tasks: true,
-          },
-        },
-      },
-    });
+      }),
+    ]);
+
+    res.setHeader('X-Total-Count', totalCount.toString());
+    res.setHeader('X-Limit', (take ?? totalCount).toString());
+    res.setHeader('X-Offset', (skip ?? 0).toString());
 
     res.json(incidents);
   } catch (error) {
