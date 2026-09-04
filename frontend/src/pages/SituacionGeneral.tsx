@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { DashboardStats } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
+import { useToast } from '../context/ToastContext';
+import { usePolling } from '../hooks/usePolling';
 import {
   LayoutDashboard,
   Printer,
@@ -22,6 +24,7 @@ export const SituacionGeneral: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const loadStats = async () => {
     try {
@@ -35,11 +38,7 @@ export const SituacionGeneral: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadStats();
-    const interval = setInterval(loadStats, 20000);
-    return () => clearInterval(interval);
-  }, [activeEvent]);
+  usePolling(loadStats, 20000, [activeEvent?.id]);
 
   // Exportar JSON completo del snapshot
   const handleDownloadSnapshot = async () => {
@@ -57,8 +56,9 @@ export const SituacionGeneral: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      toast.success('Snapshot de situación descargado correctamente');
     } catch (err: any) {
-      alert('Error al descargar JSON: ' + err.message);
+      toast.error('Error al descargar JSON: ' + (err.message || 'Error desconocido'));
     } finally {
       setDownloading(false);
     }

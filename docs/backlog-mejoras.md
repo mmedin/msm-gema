@@ -15,7 +15,7 @@
 | 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 5 | 5 | Completado |
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 3 | Completado |
 | 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | 1 | Completado |
-| 🟡 **P3** | [Frontend, UX Móvil y Navegación](#6-frontend-ux-móvil-y-navegación-p3) | 5 | 0 | Pendiente |
+| 🟡 **P3** | [Frontend, UX Móvil y Navegación](#6-frontend-ux-móvil-y-navegación-p3) | 5 | 5 | Completado |
 | 🟡 **P3** | [Arquitectura y Calidad de Código](#7-arquitectura-y-calidad-de-código-p3) | 5 | 0 | Pendiente |
 | 🟡 **P3** | [Testing Automatizado y Tooling](#8-testing-automatizado-y-tooling-p3) | 3 | 0 | Pendiente |
 
@@ -210,45 +210,45 @@
 
 ## 6. Frontend, UX Móvil y Navegación (P3)
 
-### [UX-01] Reemplazo de `alert()` y `confirm()` nativos por Toasts y Modales
-* **Archivos involucrados:** `frontend/src/pages/IncidentesAvisos.tsx`, `frontend/src/pages/MisTareas.tsx`, `frontend/src/pages/MiArea.tsx`, `frontend/src/pages/CentrosEvacuados.tsx`
+### [UX-01] ✅ Reemplazo de `alert()` y `confirm()` nativos por Toasts y Modales
+* **Archivos involucrados:** `frontend/src/pages/IncidentesAvisos.tsx`, `frontend/src/pages/MisTareas.tsx`, `frontend/src/pages/MiArea.tsx`, `frontend/src/pages/CentrosEvacuados.tsx`, `frontend/src/pages/AdminUsuarios.tsx`, `frontend/src/pages/SituacionGeneral.tsx`, `frontend/src/context/ToastContext.tsx`, `frontend/src/components/ConfirmModal.tsx`
 * **Problema:** Los diálogos nativos del navegador congelan el hilo de ejecución, bloquean la interacción en celulares bajo la lluvia y pueden ser silenciados por el sistema operativo móvil.
 * **Criterios de Aceptación:**
-  - [ ] Se implementa un sistema de notificaciones Toast no bloqueante (ej. componente accesible de notificación o librería liviana).
-  - [ ] Las confirmaciones críticas (ej. descartar aviso, cerrar incidente) utilizan modales dedicados coherentes con la estética oscura de la app.
+  - [x] Se implementa un sistema de notificaciones Toast no bloqueante (ej. componente accesible de notificación o librería liviana).
+  - [x] Las confirmaciones críticas (ej. descartar aviso, cerrar incidente) utilizan modales dedicados coherentes con la estética oscura de la app.
 
-### [UX-02] Enrutamiento URL y Deep Linking
+### [UX-02] ✅ Enrutamiento URL y Deep Linking
 * **Archivos involucrados:** `frontend/src/App.tsx`, `frontend/src/components/Sidebar.tsx`, `frontend/src/components/BottomNav.tsx`
 * **Problema:** La navegación se basa exclusivamente en un `useState` en memoria (`App.tsx:18`). Recargar la página reinicia la vista y no es posible compartir enlaces directos a un incidente o tarea específica.
 * **Criterios de Aceptación:**
-  - [ ] Se integra navegación URL (mediante `react-router-dom` o sincronización con `window.location.hash`).
-  - [ ] Las rutas `/situacion`, `/incidentes`, `/mis-tareas`, `/mi-area`, `/centros`, `/mapa` y `/admin` son accesibles directamente y preservan el historial del navegador.
+  - [x] Se integra navegación URL (mediante `react-router-dom` o sincronización con `window.location.hash` y HTML5 History API).
+  - [x] Las rutas `/situacion`, `/incidentes`, `/mis-tareas`, `/mi-area`, `/centros`, `/mapa` y `/admin` son accesibles directamente y preservan el historial del navegador.
 
-### [UX-03] Polling sincronizado y prevención de peticiones superpuestas
-* **Archivos involucrados:** Vistas con polling activo (`SituacionGeneral.tsx`, `MisTareas.tsx`, etc.)
+### [UX-03] ✅ Polling sincronizado y prevención de peticiones superpuestas
+* **Archivos involucrados:** Vistas con polling activo (`SituacionGeneral.tsx`, `MisTareas.tsx`, `IncidentesAvisos.tsx`, `MiArea.tsx`, `CentrosEvacuados.tsx`, `frontend/src/hooks/usePolling.ts`)
 * **Problema:** `setInterval` dispara consultas cada 20 segundos sin esperar la respuesta de la petición previa, generando colas de peticiones en conexiones móviles lentas.
 * **Criterios de Aceptación:**
-  - [ ] El polling se ejecuta con encadenamiento (`setTimeout` recursivo al resolver la promesa) o mediante TanStack Query con `refetchInterval`.
+  - [x] El polling se ejecuta con encadenamiento (`setTimeout` recursivo al resolver la promesa) o mediante TanStack Query con `refetchInterval`.
 
-### [UX-04] Eliminar restricción de zoom `user-scalable=no`
-* **Archivos involucrados:** `frontend/index.html`
+### [UX-04] ✅ Eliminar restricción de zoom `user-scalable=no`
+* **Archivos involucrados:** `frontend/index.html`, `frontend/src/index.css`
 * **Problema:** El viewport meta incluye `maximum-scale=1.0, user-scalable=no`, lo cual viola la pauta WCAG 1.4.4 (Resize Text) e impide que usuarios con baja visión hagan zoom. Además, iOS Safari ignora `user-scalable=no` desde iOS 10+.
   ```html
   <!-- frontend/index.html:6 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   ```
 * **Criterios de Aceptación:**
-  - [ ] Se elimina `maximum-scale=1.0` y `user-scalable=no` del meta viewport.
-  - [ ] Se mantiene `viewport-fit=cover` para dispositivos con notch.
-  - [ ] Para los inputs que producen zoom molesto en iOS, se usa `font-size: 16px` como mínimo.
+  - [x] Se elimina `maximum-scale=1.0` y `user-scalable=no` del meta viewport.
+  - [x] Se mantiene `viewport-fit=cover` para dispositivos con notch.
+  - [x] Para los inputs que producen zoom molesto en iOS, se usa `font-size: 16px` como mínimo.
 
-### [UX-05] Headers de seguridad en Nginx para contenido estático
+### [UX-05] ✅ Headers de seguridad en Nginx para contenido estático
 * **Archivos involucrados:** `frontend/nginx.conf`
 * **Problema:** Nginx no agrega headers de seguridad (`X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`) al contenido estático del frontend. Helmet los pone solo en las respuestas del backend (`/api/`). Además, los locations `/uploads/` y `/datos-geo/` usan `Access-Control-Allow-Origin: *`, lo cual es excesivamente permisivo para archivos de evidencia fotográfica.
 * **Criterios de Aceptación:**
-  - [ ] Se agregan headers de seguridad globales en Nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`.
-  - [ ] Se restringe `Access-Control-Allow-Origin` en `/uploads/` al mismo origen o al dominio configurado.
-  - [ ] Se evalúa agregar una política CSP básica.
+  - [x] Se agregan headers de seguridad globales en Nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`.
+  - [x] Se restringe `Access-Control-Allow-Origin` en `/uploads/` al mismo origen o al dominio configurado.
+  - [x] Se evalúa agregar una política CSP básica.
 
 ---
 

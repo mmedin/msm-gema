@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { Task, User } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { InactivityBadge } from '../components/InactivityBadge';
+import { useToast } from '../context/ToastContext';
+import { usePolling } from '../hooks/usePolling';
 import {
   FolderKanban,
   UserCheck,
@@ -23,6 +25,7 @@ export const MiArea: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const isGeneralCoord =
     user?.role === 'COORDINACION' && user?.coordination_scope === 'GENERAL';
@@ -75,26 +78,23 @@ export const MiArea: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 20000);
-    return () => clearInterval(interval);
-  }, [activeTab]);
+  usePolling(loadData, 20000, [activeTab]);
 
   // Etapa 2: Asignar ejecutor nominal
   const handleAssign = async (taskId: string) => {
     const assigneeId = selectedAssignees[taskId];
     if (!assigneeId) {
-      alert('Debe seleccionar un operario o autoasignarse');
+      toast.warning('Debe seleccionar un operario o autoasignarse');
       return;
     }
 
     try {
       setActionLoading(taskId);
       await api.assignTask(taskId, assigneeId);
+      toast.success('Ejecutor asignado exitosamente');
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Error al asignar ejecutor');
+      toast.error(err.message || 'Error al asignar ejecutor');
     } finally {
       setActionLoading(null);
     }
@@ -109,7 +109,7 @@ export const MiArea: React.FC = () => {
     );
 
     if (wasSelfAssigned && !isGeneralCoord && !isAdmin) {
-      alert(
+      toast.warning(
         'Regla Operativa: Esta tarea fue resuelta por el propio Coordinador de Área (autoasignación). Únicamente la Coordinación General puede verificarla.'
       );
       return;
@@ -118,9 +118,10 @@ export const MiArea: React.FC = () => {
     try {
       setActionLoading(task.id);
       await api.verifyTask(task.id);
+      toast.success('Tarea verificada correctamente');
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Error al verificar tarea');
+      toast.error(err.message || 'Error al verificar tarea');
     } finally {
       setActionLoading(null);
     }

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { EvacuationCenter, OccupancyDirection, EvacuationOccupancyLog } from '../types';
 import { OccupancyModal } from '../components/OccupancyModal';
+import { usePolling } from '../hooks/usePolling';
 import {
   Home,
   UserPlus,
@@ -38,11 +39,7 @@ export const CentrosEvacuados: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadCenters();
-    const interval = setInterval(loadCenters, 20000);
-    return () => clearInterval(interval);
-  }, [activeEvent]);
+  usePolling(loadCenters, 20000, [activeEvent?.id]);
 
   const handleOpenOccupancy = (center: EvacuationCenter, dir: OccupancyDirection) => {
     setSelectedCenter(center);

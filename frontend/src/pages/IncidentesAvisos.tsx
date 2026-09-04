@@ -8,6 +8,9 @@ import { NoticeModal } from '../components/NoticeModal';
 import { LinkNoticeModal } from '../components/LinkNoticeModal';
 import { NewTaskModal } from '../components/NewTaskModal';
 import { Modal } from '../components/Modal';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { useToast } from '../context/ToastContext';
+import { usePolling } from '../hooks/usePolling';
 import {
   AlertOctagon,
   PlusCircle,
@@ -44,7 +47,10 @@ export const IncidentesAvisos: React.FC = () => {
   const [triagePrio, setTriagePrio] = useState<Priority>('P2');
   const [closingIncident, setClosingIncident] = useState(false);
   const [closeWarning, setCloseWarning] = useState<string | null>(null);
+  const [discardNoticeTarget, setDiscardNoticeTarget] = useState<Notice | null>(null);
+  const [discarding, setDiscarding] = useState(false);
 
+  const toast = useToast();
   const canTriage = !!user?.can_triage;
   const isGeneralCoordOrAdmin =
     (user?.role === 'COORDINACION' && user?.coordination_scope === 'GENERAL') ||
@@ -72,30 +78,32 @@ export const IncidentesAvisos: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 20000);
-    return () => clearInterval(interval);
-  }, [activeEvent]);
+  usePolling(loadData, 20000, [activeEvent?.id]);
 
   // Convertir aviso directamente a nuevo incidente
   const handleConvertNotice = async (noticeId: string) => {
     try {
       await api.convertNotice(noticeId, {});
+      toast.success('Aviso convertido a nuevo incidente correctamente');
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Error al convertir aviso a incidente');
+      toast.error(err.message || 'Error al convertir aviso a incidente');
     }
   };
 
-  // Descartar aviso
-  const handleDiscardNotice = async (noticeId: string) => {
-    if (!confirm('¿Desea descartar este aviso?')) return;
+  // Confirmar y descartar aviso
+  const handleConfirmDiscard = async () => {
+    if (!discardNoticeTarget) return;
     try {
-      await api.discardNotice(noticeId);
+      setDiscarding(true);
+      await api.discardNotice(discardNoticeTarget.id);
+      toast.success('Aviso descartado');
+      setDiscardNoticeTarget(null);
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Error al descartar aviso');
+      toast.error(err.message || 'Error al descartar aviso');
+    } finally {
+      setDiscarding(false);
     }
   };
 
@@ -105,9 +113,10 @@ export const IncidentesAvisos: React.FC = () => {
     try {
       const updated = await api.triageIncident(selectedIncident.id, prio);
       setSelectedIncident({ ...selectedIncident, priority: updated.priority, status: updated.status });
+      toast.success(`Incidente clasificado con prioridad ${prio}`);
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Error al clasificar prioridad');
+      toast.error(err.message || 'Error al clasificar prioridad');
     }
   };
 
@@ -121,6 +130,7 @@ export const IncidentesAvisos: React.FC = () => {
         status: newStatus,
         force,
       });
+      toast.success(`Incidente ${newStatus === 'RESUELTO' ? 'resuelto' : 'cerrado'} exitosamente`);
       await loadData();
       setSelectedIncident(null);
     } catch (err: any) {
@@ -129,7 +139,7 @@ export const IncidentesAvisos: React.FC = () => {
           `Atención: Quedan ${err.data.openTasksCount} tarea(s) pendientes de resolución o verificación en este incidente. ¿Desea forzar el cierre de todas maneras?`
         );
       } else {
-        alert(err.message || 'Error al cambiar estado del incidente');
+        toast.error(err.message || 'Error al cambiar estado del incidente');
       }
     } finally {
       setClosingIncident(false);
@@ -396,7 +406,8 @@ export const IncidentesAvisos: React.FC = () => {
                           Vincular a incidente existente
                         </button>
                         <button
-                          onClick={() => handleDiscardNotice(n.id)}
+                          onClick={() => setDiscardNoticeTarget(n)}
+                          title="Descartar aviso"
                           className="btn-touch px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-300 text-xs font-semibold ml-auto"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -670,6 +681,19 @@ export const IncidentesAvisos: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Modal de Confirmación para Descartar Aviso */}
+      <ConfirmModal
+        isOpen={!!discardNoticeTarget}
+        title="Descartar Aviso Operativo"
+        message={`¿Confirma que desea descartar el aviso en "${discardNoticeTarget?.location_text || ''}"? Este aviso quedará desestimado del registro activo.`}
+        confirmText="Descartar Aviso"
+        cancelText="Cancelar"
+        variant="danger"
+        loading={discarding}
+        onConfirm={handleConfirmDiscard}
+        onCancel={() => setDiscardNoticeTarget(null)}
+      />
     </div>
   );
 };

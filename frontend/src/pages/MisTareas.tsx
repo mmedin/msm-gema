@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { api } from '../api';
 import { Task, TaskStatus } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { InactivityBadge } from '../components/InactivityBadge';
 import { Modal } from '../components/Modal';
+import { useToast } from '../context/ToastContext';
+import { usePolling } from '../hooks/usePolling';
 import {
   CheckCircle2,
   Truck,
@@ -19,6 +21,7 @@ export const MisTareas: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   // Modales
   const [resolveTask, setResolveTask] = useState<Task | null>(null);
@@ -40,19 +43,16 @@ export const MisTareas: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadTasks();
-    const interval = setInterval(loadTasks, 20000); // Polling reactivo cada 20s
-    return () => clearInterval(interval);
-  }, []);
+  usePolling(loadTasks, 20000, []);
 
   const handleQuickTransition = async (task: Task, targetStatus: TaskStatus) => {
     try {
       setSubmitting(true);
       await api.transitionTask(task.id, { status: targetStatus });
+      toast.success(`Estado actualizado a ${targetStatus}`);
       await loadTasks();
     } catch (err: any) {
-      alert(err.message || 'Error al actualizar estado');
+      toast.error(err.message || 'Error al actualizar estado');
     } finally {
       setSubmitting(false);
     }
@@ -62,7 +62,7 @@ export const MisTareas: React.FC = () => {
     e.preventDefault();
     if (!resolveTask) return;
     if (!resultNotes.trim()) {
-      alert('Debe detallar el resultado de la tarea');
+      toast.warning('Debe detallar el resultado de la tarea');
       return;
     }
 
@@ -72,11 +72,12 @@ export const MisTareas: React.FC = () => {
         status: 'RESUELTA',
         result_notes: resultNotes.trim(),
       });
+      toast.success('Tarea resuelta con éxito');
       setResolveTask(null);
       setResultNotes('');
       await loadTasks();
     } catch (err: any) {
-      alert(err.message || 'Error al resolver la tarea');
+      toast.error(err.message || 'Error al resolver la tarea');
     } finally {
       setSubmitting(false);
     }
@@ -86,7 +87,7 @@ export const MisTareas: React.FC = () => {
     e.preventDefault();
     if (!impedimentTask) return;
     if (!impedimentReason.trim() || !impedimentNextAction.trim()) {
-      alert('Debe ingresar el motivo y la próxima acción requerida');
+      toast.warning('Debe ingresar el motivo y la próxima acción requerida');
       return;
     }
 
@@ -97,12 +98,13 @@ export const MisTareas: React.FC = () => {
         impediment_reason: impedimentReason.trim(),
         impediment_next_action: impedimentNextAction.trim(),
       });
+      toast.success('Impedimento registrado correctamente');
       setImpedimentTask(null);
       setImpedimentReason('');
       setImpedimentNextAction('');
       await loadTasks();
     } catch (err: any) {
-      alert(err.message || 'Error al reportar impedimento');
+      toast.error(err.message || 'Error al reportar impedimento');
     } finally {
       setSubmitting(false);
     }

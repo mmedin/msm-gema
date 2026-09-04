@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { User, Area, UserRole, CoordinationScope } from '../types';
 import { Modal } from '../components/Modal';
+import { useToast } from '../context/ToastContext';
 import { Users, UserPlus, KeyRound, Check, X, Shield, ShieldCheck } from 'lucide-react';
 
 export const AdminUsuarios: React.FC = () => {
@@ -9,6 +10,7 @@ export const AdminUsuarios: React.FC = () => {
   const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   // Modales
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -38,7 +40,7 @@ export const AdminUsuarios: React.FC = () => {
         setFormData((prev) => ({ ...prev, area_id: areasData[0].id }));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cargar usuarios');
+      setError(err.message || 'Error al cargar usuarios y áreas');
     } finally {
       setLoading(false);
     }
@@ -51,12 +53,12 @@ export const AdminUsuarios: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.username.trim() || !formData.password || !formData.name.trim()) {
-      alert('Todos los campos obligatorios deben ser completados');
+      toast.warning('Todos los campos obligatorios deben ser completados');
       return;
     }
 
     if (!formData.username.includes('.')) {
-      alert('El nombre de usuario debe seguir estrictamente el formato nombre.apellido (sin correos)');
+      toast.warning('El nombre de usuario debe seguir estrictamente el formato nombre.apellido (sin correos)');
       return;
     }
 
@@ -67,6 +69,7 @@ export const AdminUsuarios: React.FC = () => {
         coordination_scope: formData.coordination_scope || null,
         area_id: formData.area_id || null,
       });
+      toast.success(`Usuario ${formData.username} creado exitosamente`);
       setShowCreateModal(false);
       setFormData({
         username: '',
@@ -79,7 +82,7 @@ export const AdminUsuarios: React.FC = () => {
       });
       await loadUsersAndAreas();
     } catch (err: any) {
-      alert(err.message || 'Error al crear usuario');
+      toast.error(err.message || 'Error al crear usuario');
     } finally {
       setSubmitting(false);
     }
@@ -92,11 +95,11 @@ export const AdminUsuarios: React.FC = () => {
     try {
       setSubmitting(true);
       await api.updateUser(resetUser.id, { password: newPassword.trim() });
-      alert(`Contraseña actualizada con éxito para ${resetUser.username}`);
+      toast.success(`Contraseña actualizada con éxito para ${resetUser.username}`);
       setResetUser(null);
       setNewPassword('');
     } catch (err: any) {
-      alert(err.message || 'Error al restablecer contraseña');
+      toast.error(err.message || 'Error al restablecer contraseña');
     } finally {
       setSubmitting(false);
     }
@@ -105,9 +108,10 @@ export const AdminUsuarios: React.FC = () => {
   const handleToggleActive = async (user: User) => {
     try {
       await api.updateUser(user.id, { active: !user.active });
+      toast.success(`Usuario ${user.username} ${user.active ? 'desactivado' : 'activado'} correctamente`);
       await loadUsersAndAreas();
     } catch (err: any) {
-      alert(err.message || 'Error al cambiar estado');
+      toast.error(err.message || 'Error al cambiar estado');
     }
   };
 

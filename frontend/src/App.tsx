@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { Login } from './pages/Login';
 import { Sidebar } from './components/Sidebar';
@@ -13,21 +13,85 @@ import { MapaOperativo } from './pages/MapaOperativo';
 import { AdminUsuarios } from './pages/AdminUsuarios';
 import { Shield } from 'lucide-react';
 
+const VALID_TABS = [
+  'situacion',
+  'incidentes',
+  'mis-tareas',
+  'mi-area',
+  'centros',
+  'mapa',
+  'admin',
+];
+
+function getTabFromUrl(): string | null {
+  const path = window.location.pathname.replace(/^\/+/, '').split('/')[0];
+  if (path && VALID_TABS.includes(path)) {
+    return path;
+  }
+  const hash = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (hash && VALID_TABS.includes(hash)) {
+    return hash;
+  }
+  return null;
+}
+
 export const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const [currentTab, setCurrentTab] = useState<string>('situacion');
+  const [currentTab, setCurrentTab] = useState<string>(() => getTabFromUrl() || 'situacion');
 
+  const getDefaultTabForUser = useCallback(() => {
+    if (!user) return 'situacion';
+    if (user.role === 'OPERACION') return 'mis-tareas';
+    if (user.role === 'COORDINACION' && user.coordination_scope === 'AREA') return 'mi-area';
+    return 'situacion';
+  }, [user]);
+
+  // Sincronizar tab inicial o redirigir según rol al autenticar
   useEffect(() => {
-    if (user) {
-      if (user.role === 'OPERACION') {
-        setCurrentTab('mis-tareas');
-      } else if (user.role === 'COORDINACION' && user.coordination_scope === 'AREA') {
-        setCurrentTab('mi-area');
+    if (!user) return;
+
+    const requestedTab = getTabFromUrl();
+    const defaultTab = getDefaultTabForUser();
+
+    if (!requestedTab) {
+      setCurrentTab(defaultTab);
+      window.history.replaceState(null, '', `/${defaultTab}`);
+    } else {
+      // Validar permisos de acceso para la ruta solicitada
+      if (requestedTab === 'admin' && user.role !== 'ADMINISTRADOR') {
+        setCurrentTab(defaultTab);
+        window.history.replaceState(null, '', `/${defaultTab}`);
       } else {
-        setCurrentTab('situacion');
+        setCurrentTab(requestedTab);
       }
     }
-  }, [user?.role]);
+  }, [user, getDefaultTabForUser]);
+
+  // Escuchar eventos de navegación del navegador (Atrás / Adelante)
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = getTabFromUrl();
+      if (tab) {
+        setCurrentTab(tab);
+      } else if (user) {
+        const defaultTab = getDefaultTabForUser();
+        setCurrentTab(defaultTab);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [user, getDefaultTabForUser]);
+
+  // Función de navegación con actualización del historial
+  const handleNavigate = useCallback(
+    (tab: string) => {
+      if (tab === currentTab) return;
+      setCurrentTab(tab);
+      window.history.pushState(null, '', `/${tab}`);
+    },
+    [currentTab]
+  );
 
   if (loading) {
     return (
@@ -49,7 +113,7 @@ export const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex bg-[#0a0e17] text-slate-100 antialiased selection:bg-amber-500 selection:text-black">
       {/* Barra lateral de escritorio */}
-      <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      <Sidebar currentTab={currentTab} setCurrentTab={handleNavigate} />
 
       {/* Contenedor Principal */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
@@ -68,7 +132,7 @@ export const AppContent: React.FC = () => {
         </main>
 
         {/* Barra táctil móvil inferior */}
-        <BottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
+        <BottomNav currentTab={currentTab} setCurrentTab={handleNavigate} />
       </div>
     </div>
   );
