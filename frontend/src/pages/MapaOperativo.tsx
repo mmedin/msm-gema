@@ -83,10 +83,17 @@ export const MapaOperativo: React.FC = () => {
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Mapa base oscuro (CartoDB Dark Matter)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
+      // Mapa base oscuro Esri ArcGIS (Dark Gray Canvas, sin marcas de agua ni API key)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, DeLorme, NAVTEQ',
+        maxNativeZoom: 16,
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Etiquetas de calles y barrios sobre el mapa oscuro
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '',
+        maxNativeZoom: 16,
         maxZoom: 19,
       }).addTo(map);
 
