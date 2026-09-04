@@ -14,7 +14,7 @@
 | 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | 3 | Completado |
 | 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 5 | 5 | Completado |
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 3 | Completado |
-| 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | 0 | Pendiente |
+| 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | 1 | Completado |
 | 🟡 **P3** | [Frontend, UX Móvil y Navegación](#6-frontend-ux-móvil-y-navegación-p3) | 5 | 0 | Pendiente |
 | 🟡 **P3** | [Arquitectura y Calidad de Código](#7-arquitectura-y-calidad-de-código-p3) | 5 | 0 | Pendiente |
 | 🟡 **P3** | [Testing Automatizado y Tooling](#8-testing-automatizado-y-tooling-p3) | 3 | 0 | Pendiente |
@@ -192,7 +192,7 @@
 
 ## 5. Autonomía Offline y Redundancia (P2)
 
-### [OFF-01] Empaquetado local de Leaflet CSS y tipografías (100% Autónomo)
+### [OFF-01] ✅ Empaquetado local de Leaflet CSS y tipografías (100% Autónomo)
 * **Archivos involucrados:** `frontend/index.html`, `frontend/src/main.tsx`, `frontend/package.json`
 * **Problema:** Se cargan estilos de Leaflet desde `unpkg.com` y fuentes desde `fonts.googleapis.com`. Si durante una catástrofe cae el enlace a internet del municipio y el sistema opera en LAN o enlace satelital cerrado, el mapa se desconfigura visualmente y las fuentes no cargan.
   ```html
@@ -202,9 +202,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter..." />
   ```
 * **Criterios de Aceptación:**
-  - [ ] `leaflet.css` se importa directamente desde `node_modules` en `main.tsx` (`import 'leaflet/dist/leaflet.css';`).
-  - [ ] Se eliminan las etiquetas `<link>` a CDNs externos en `index.html`.
-  - [ ] Las fuentes se empaquetan localmente o se utilizan fuentes del sistema como fallback de alto contraste.
+  - [x] `leaflet.css` se importa directamente desde `node_modules` en `main.tsx` (`import 'leaflet/dist/leaflet.css';`).
+  - [x] Se eliminan las etiquetas `<link>` a CDNs externos en `index.html`.
+  - [x] Las fuentes se empaquetan localmente o se utilizan fuentes del sistema como fallback de alto contraste.
 
 ---
 
