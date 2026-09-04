@@ -39,6 +39,23 @@ const defaultAllowedOrigins = [
 
 const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
 
+const isAllowedOrigin = (origin: string): boolean => {
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const parsed = new URL(origin);
+    const hostname = parsed.hostname;
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+    );
+  } catch {
+    return false;
+  }
+};
+
 // Seguridad y middlewares básicos
 app.use(
   helmet({
@@ -52,10 +69,7 @@ app.use(
       if (!origin) {
         return callback(null, true);
       }
-      if (
-        allowedOrigins.includes(origin) ||
-        (config.nodeEnv === 'development' && /^http:\/\/localhost(:\d+)?$/.test(origin))
-      ) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
       return callback(new Error(`Origen no permitido por política CORS: ${origin}`));
