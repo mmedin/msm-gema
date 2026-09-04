@@ -1,13 +1,25 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../db';
 import { config } from '../config';
 import { authenticateToken } from '../middleware/auth';
 
 export const authRouter = Router();
 
-authRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
+// Limitador de intentos en login configurable: valores por defecto 10 intentos por minuto por IP
+const loginLimiter = rateLimit({
+  windowMs: config.rateLimit.loginWindowMs,
+  max: config.rateLimit.loginMax,
+  standardHeaders: true, // Devuelve headers estándar `RateLimit-*`
+  legacyHeaders: false, // Deshabilita headers `X-RateLimit-*`
+  message: {
+    error: `Demasiados intentos de inicio de sesión. Por favor intente nuevamente más tarde.`,
+  },
+});
+
+authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, password } = req.body;
 

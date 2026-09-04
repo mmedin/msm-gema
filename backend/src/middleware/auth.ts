@@ -34,8 +34,12 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     const decoded = jwt.verify(token, config.jwtSecret) as TokenPayload;
     req.user = decoded;
     next();
-  } catch (err) {
-    res.status(403).json({ error: 'Token inválido o expirado' });
+  } catch (err: any) {
+    if (err && err.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Token expirado. Inicie sesión nuevamente' });
+      return;
+    }
+    res.status(401).json({ error: 'Token inválido o malformado' });
   }
 };
 

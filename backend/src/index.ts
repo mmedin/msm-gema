@@ -16,10 +16,27 @@ import { areasRouter } from './routes/areas';
 
 const app = express();
 
+// Confiar en el reverse proxy (Nginx / Coolify) para obtención correcta de IP del cliente
+app.set('trust proxy', 1);
+
 // Asegurar existencia de directorio de uploads
 if (!fs.existsSync(config.uploadDir)) {
   fs.mkdirSync(config.uploadDir, { recursive: true });
 }
+
+// Configuración de orígenes permitidos para CORS sin comodín para cumplir estándar W3C con credentials
+const configuredOrigins = config.frontendUrl
+  ? config.frontendUrl.split(',').map((url) => url.trim()).filter(Boolean)
+  : [];
+
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:80',
+  'http://localhost',
+];
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
 
 // Seguridad y middlewares básicos
 app.use(
@@ -29,7 +46,19 @@ app.use(
 );
 app.use(
   cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Permitir peticiones sin header Origin (como curl, server-to-server, healthchecks)
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (
+        allowedOrigins.includes(origin) ||
+        (config.nodeEnv === 'development' && /^http:\/\/localhost(:\d+)?$/.test(origin))
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origen no permitido por política CORS: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -69,6 +98,26 @@ app.use((_req, res) => {
 // Manejo centralizado de errores
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error global no capturado:', err);
+
+  if (err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({ error: 'El archivo supera el tamaño máximo permitido de 15MB' });
+      return;
+    }
+    res.status(400).json({ error: `Error en subida de archivo: ${err.message}` });
+    return;
+  }
+
+  if (err.message && err.message.includes('Solo se permiten imágenes')) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
+
+  if (err.message && err.message.includes('Origen no permitido por política CORS')) {
+    res.status(403).json({ error: err.message });
+    return;
+  }
+
   res.status(err.status || 500).json({
     error: err.message || 'Error interno en el servidor',
   });

@@ -50,8 +50,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (response.status === 401) {
     removeToken();
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    // No redirigir ni reiniciar si el 401 proviene del propio intento de login
+    if (!endpoint.includes('/auth/login')) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }
 

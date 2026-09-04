@@ -9,7 +9,7 @@
 
 | Prioridad | Épica / Dominio | Tareas | Estado |
 | :---: | :--- | :---: | :---: |
-| 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 3 | Pendiente |
+| 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 3 | Completado |
 | 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | Pendiente |
 | 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 2 | Pendiente |
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | Pendiente |
@@ -26,15 +26,15 @@
 * **Archivos involucrados:** `backend/src/index.ts`, `backend/src/config.ts`
 * **Problema:** Se configuró `cors({ origin: '*', credentials: true })`, lo cual viola el estándar W3C/Fetch y es bloqueado por navegadores modernos al intercambiar credenciales de autorización.
 * **Criterios de Aceptación:**
-  - [ ] El middleware CORS utiliza `config.frontendUrl` o un array de orígenes permitidos explícitos.
-  - [ ] Se verifica que las peticiones desde el frontend en dev (puerto 3000) y prod respondan con los encabezados correspondientes.
+  - [x] El middleware CORS utiliza `config.frontendUrl` o un array de orígenes permitidos explícitos.
+  - [x] Se verifica que las peticiones desde el frontend en dev (puerto 3000) y prod respondan con los encabezados correspondientes.
 
 ### [SEC-02] Sanitización de extensión en subida de evidencias
 * **Archivos involucrados:** `backend/src/middleware/upload.ts`
 * **Problema:** Solo se valida el MIME type pero se conserva la extensión enviada por el cliente (`file.originalname`), permitiendo la subida de archivos con extensión `.html` o `.svg` encubiertos como imágenes (riesgo de Stored XSS).
 * **Criterios de Aceptación:**
-  - [ ] La extensión del archivo guardado en disco se infiere estrictamente del MIME type verificado (`image/jpeg` $\to$ `.jpg`, `image/png` $\to$ `.png`, `image/webp` $\to$ `.webp`).
-  - [ ] Se descarta y no se persiste ningún archivo cuyo payload posterior falle (limpieza de huérfanos con `fs.unlink`).
+  - [x] La extensión del archivo guardado en disco se infiere estrictamente del MIME type verificado (`image/jpeg` $\to$ `.jpg`, `image/png` $\to$ `.png`, `image/webp` $\to$ `.webp`).
+  - [x] Se descarta y no se persiste ningún archivo cuyo payload posterior falle (limpieza de huérfanos con `fs.unlink`).
 
 ### [SEC-03] Alinear código HTTP en expiración de JWT (401 vs 403) y Rate Limiting en Login
 * **Archivos involucrados:** `backend/src/middleware/auth.ts`, `backend/src/routes/auth.ts`, `frontend/src/api.ts`
@@ -42,10 +42,10 @@
   - El backend responde `403` al expirar el JWT, pero el frontend escucha únicamente `401` para redirigir a `/login`, causando un bloqueo silencioso en la interfaz tras 24 horas.
   - `/api/auth/login` no posee límite de intentos, exponiendo al sistema a fuerza bruta.
 * **Criterios de Aceptación:**
-  - [ ] Tokens inválidos o expirados responden con código `401 Unauthorized`.
-  - [ ] Tokens válidos pero sin permisos de rol responden con código `403 Forbidden`.
-  - [ ] Se agrega `express-rate-limit` en `/api/auth/login` (máx. 10 intentos por minuto por IP).
-  - [ ] El frontend redirige fluidamente al login al recibir un 401.
+  - [x] Tokens inválidos o expirados responden con código `401 Unauthorized`.
+  - [x] Tokens válidos pero sin permisos de rol responden con código `403 Forbidden`.
+  - [x] Se agrega `express-rate-limit` en `/api/auth/login` (máx. 10 intentos por minuto por IP).
+  - [x] El frontend redirige fluidamente al login al recibir un 401.
 
 ---
 

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken } from '../middleware/auth';
-import { upload } from '../middleware/upload';
+import { upload, cleanupUploadedFile } from '../middleware/upload';
 import { notice_status, life_risk, trend, incident_status } from '@prisma/client';
 
 export const noticesRouter = Router();
@@ -67,12 +67,14 @@ noticesRouter.post(
       } = req.body;
 
       if (!event_id || !channel || !source || !description) {
+        cleanupUploadedFile(req.file);
         res.status(400).json({ error: 'Faltan campos requeridos (event_id, channel, source, description)' });
         return;
       }
 
       const isLocationPending = location_pending === 'true' || location_pending === true;
       if (!isLocationPending && !location_text) {
+        cleanupUploadedFile(req.file);
         res.status(400).json({ error: 'Debe ingresar una ubicación o marcar ubicación pendiente' });
         return;
       }
@@ -115,6 +117,7 @@ noticesRouter.post(
 
       res.status(201).json(notice);
     } catch (error) {
+      cleanupUploadedFile(req.file);
       console.error('Error al crear aviso:', error);
       res.status(500).json({ error: 'Error al registrar aviso' });
     }
