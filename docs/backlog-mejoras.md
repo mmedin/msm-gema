@@ -16,7 +16,7 @@
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 3 | Completado |
 | 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | 1 | Completado |
 | 🟡 **P3** | [Frontend, UX Móvil y Navegación](#6-frontend-ux-móvil-y-navegación-p3) | 5 | 5 | Completado |
-| 🟡 **P3** | [Arquitectura y Calidad de Código](#7-arquitectura-y-calidad-de-código-p3) | 5 | 0 | Pendiente |
+| 🟡 **P3** | [Arquitectura y Calidad de Código](#7-arquitectura-y-calidad-de-código-p3) | 5 | 5 | Completado |
 | 🟡 **P3** | [Testing Automatizado y Tooling](#8-testing-automatizado-y-tooling-p3) | 3 | 0 | Pendiente |
 
 ---
@@ -254,43 +254,43 @@
 
 ## 7. Arquitectura y Calidad de Código (P3)
 
-### [ARCH-01] Validación de esquemas en Backend con Zod
-* **Archivos involucrados:** `backend/src/routes/*.ts`
+### [ARCH-01] ✅ Validación de esquemas en Backend con Zod
+* **Archivos involucrados:** `backend/src/routes/*.ts`, `backend/src/schemas/*.schema.ts`, `backend/src/middleware/validate.ts`
 * **Problema:** Ausencia de validación estricta de payloads; se utilizan casts manuales (ej. `role as user_role`) que generan excepciones no controladas de Prisma ante enums erróneos, resultando en errores 500 crípticos en vez de 400 descriptivos.
 * **Criterios de Aceptación:**
-  - [ ] Se definen esquemas Zod para la creación y actualización de eventos, avisos, incidentes, tareas y ocupación.
-  - [ ] Peticiones con datos inválidos devuelven `400 Bad Request` con el desglose exacto de campos fallidos.
+  - [x] Se definen esquemas Zod para la creación y actualización de eventos, avisos, incidentes, tareas y ocupación.
+  - [x] Peticiones con datos inválidos devuelven `400 Bad Request` con el desglose exacto de campos fallidos.
 
-### [ARCH-02] Desacoplamiento de capa de servicios
-* **Archivos involucrados:** `backend/src/routes/`, `backend/src/services/` (nuevo)
+### [ARCH-02] ✅ Desacoplamiento de capa de servicios
+* **Archivos involucrados:** `backend/src/routes/`, `backend/src/services/` (`TaskService`, `IncidentService`, `EvacuationService`)
 * **Problema:** Los manejadores de Express combinan parsing HTTP, reglas complejas de negocio (verificación cruzada, cálculo de inactividad, transiciones de estado) y llamadas directas a Prisma. Esto impide testear la lógica de negocio de forma aislada.
 * **Criterios de Aceptación:**
-  - [ ] Se extrae la lógica de negocio a servicios desacoplados (`TaskService`, `IncidentService`, `EvacuationService`).
-  - [ ] Los controladores de ruta quedan limitados a autenticación, validación de entrada y respuesta HTTP.
+  - [x] Se extrae la lógica de negocio a servicios desacoplados (`TaskService`, `IncidentService`, `EvacuationService`).
+  - [x] Los controladores de ruta quedan limitados a autenticación, validación de entrada y respuesta HTTP.
 
-### [ARCH-03] Eliminación del uso extensivo de `any` en TypeScript
+### [ARCH-03] ✅ Eliminación del uso extensivo de `any` en TypeScript
 * **Archivos involucrados:** Todos los archivos en `backend/src/routes/`, `backend/src/middleware/`, `backend/src/utils/`
 * **Problema:** Se identifican **18 ocurrencias** de `: any` en el backend, anulando las garantías del sistema de tipos de TypeScript. Patrones más frecuentes:
   - `const whereClause: any = {}` — debería ser `Prisma.TaskWhereInput` o similar.
   - `const dataToUpdate: any = {}` — debería ser `Prisma.IncidentUpdateInput` o similar.
   - `catch (error: any)` — debería ser `catch (error: unknown)` con type narrowing.
 * **Criterios de Aceptación:**
-  - [ ] Se reemplazan las 18 ocurrencias de `any` por tipos concretos de Prisma o tipos propios.
-  - [ ] Se habilita `noImplicitAny: true` en `backend/tsconfig.json` (ya está cubierto por `strict: true`, pero verificar que no haya excepciones).
+  - [x] Se reemplazan las 18 ocurrencias de `any` por tipos concretos de Prisma o tipos propios.
+  - [x] Se habilita `noImplicitAny: true` en `backend/tsconfig.json` (ya está cubierto por `strict: true`, pero verificar que no haya excepciones).
 
-### [ARCH-04] Eliminar dependencia muerta `dotenv`
+### [ARCH-04] ✅ Eliminar dependencia muerta `dotenv`
 * **Archivos involucrados:** `backend/package.json`
 * **Problema:** `dotenv` está listada como dependencia de producción (`package.json:19`) pero no se importa ni se usa en ningún archivo del `src/`. Es peso muerto en la imagen Docker.
 * **Criterios de Aceptación:**
-  - [ ] Se elimina `dotenv` de `dependencies` en `backend/package.json`.
-  - [ ] Se verifica que el entrypoint y los scripts no dependan de ella.
+  - [x] Se elimina `dotenv` de `dependencies` en `backend/package.json`.
+  - [x] Se verifica que el entrypoint y los scripts no dependan de ella.
 
-### [ARCH-05] Separar datos de fixture del seed maestro
-* **Archivos involucrados:** `backend/prisma/seed.ts`
+### [ARCH-05] ✅ Separar datos de fixture del seed maestro
+* **Archivos involucrados:** `backend/prisma/seed.ts`, `backend/prisma/seed-master.ts`, `backend/prisma/seed-demo.ts`, `backend/entrypoint.sh`
 * **Problema:** El script de seed mezcla datos maestros (áreas, usuarios, centros de evacuados) con datos de demo/fixture (evento de prueba, incidentes, avisos y tareas ficticias desde la línea ~170 en adelante). Cada deploy ejecuta el seed, lo cual podría crear datos de prueba en producción.
 * **Criterios de Aceptación:**
-  - [ ] Se separa `seed.ts` en dos archivos: `seed-master.ts` (áreas, usuarios, centros) y `seed-demo.ts` (evento, incidentes, avisos, tareas).
-  - [ ] `entrypoint.sh` ejecuta solo el seed maestro. El seed de demo se corre manualmente o condicionado a `NODE_ENV !== 'production'`.
+  - [x] Se separa `seed.ts` en dos archivos: `seed-master.ts` (áreas, usuarios, centros) y `seed-demo.ts` (evento, incidentes, avisos, tareas).
+  - [x] `entrypoint.sh` ejecuta solo el seed maestro. El seed de demo se corre manualmente o condicionado a `NODE_ENV !== 'production'`.
 
 ---
 

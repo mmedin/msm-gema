@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db';
 import { authenticateToken, requireRole, invalidateActiveStatusCache } from '../middleware/auth';
-import { user_role, coordination_scope } from '@prisma/client';
+import { user_role, coordination_scope, Prisma } from '@prisma/client';
 import { validatePassword } from '../utils/passwordValidation';
 
 export const usersRouter = Router();
@@ -12,7 +12,7 @@ usersRouter.get('/assignable', authenticateToken, async (req: Request, res: Resp
   try {
     const { area_id } = req.query;
 
-    const whereClause: any = { active: true };
+    const whereClause: Prisma.UserWhereInput = { active: true };
     if (area_id) {
       whereClause.area_id = String(area_id);
     } else if (req.user!.area_id) {
@@ -140,7 +140,7 @@ usersRouter.patch('/:id', authenticateToken, requireRole(user_role.ADMINISTRADOR
     const { id } = req.params;
     const { name, role, coordination_scope: scope, area_id, can_triage, active, password } = req.body;
 
-    const dataToUpdate: any = {};
+    const dataToUpdate: Prisma.UserUncheckedUpdateInput = {};
     if (name !== undefined) dataToUpdate.name = name;
     if (role !== undefined) dataToUpdate.role = role as user_role;
     if (scope !== undefined) dataToUpdate.coordination_scope = scope as coordination_scope;

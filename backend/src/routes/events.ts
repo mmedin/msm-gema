@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken, requireGeneralCoordOrAdmin } from '../middleware/auth';
-import { event_status, smn_alert } from '@prisma/client';
+import { validateBody } from '../middleware/validate';
+import { createEventSchema, updateEventSchema } from '../schemas/events.schema';
+import { Prisma, event_status, smn_alert } from '@prisma/client';
 import { generateNextEventCode, withTransactionRetry } from '../utils/atomicSequence';
 
 export const eventsRouter = Router();
@@ -26,7 +28,7 @@ eventsRouter.get('/', authenticateToken, async (req: Request, res: Response): Pr
     });
 
     res.json(events);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error al listar eventos:', error);
     res.status(500).json({ error: 'Error al obtener eventos' });
   }
@@ -64,101 +66,108 @@ eventsRouter.get('/active', authenticateToken, async (req: Request, res: Respons
     }
 
     res.json(event);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error al obtener evento activo:', error);
     res.status(500).json({ error: 'Error al obtener evento activo' });
   }
 });
 
 // Crear nuevo evento
-eventsRouter.post('/', authenticateToken, requireGeneralCoordOrAdmin, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { description, smn_alert: alertLevel, status } = req.body;
+eventsRouter.post(
+  '/',
+  authenticateToken,
+  requireGeneralCoordOrAdmin,
+  validateBody(createEventSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { description, smn_alert: alertLevel, status } = req.body;
 
-    if (!description) {
-      res.status(400).json({ error: 'La descripción del evento es requerida' });
-      return;
+      const year = new Date().getFullYear();
+
+      const newEvent = await withTransactionRetry(() =>
+        prisma.$transaction(async (tx) => {
+          const code = await generateNextEventCode(tx, year);
+
+          const created = await tx.event.create({
+            data: {
+              code,
+              description,
+              status: status || event_status.RESPUESTA,
+              smn_alert: alertLevel || smn_alert.AMARILLA,
+              opened_by_id: req.user!.id,
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actor_id: req.user!.id,
+              action: 'CREAR_EVENTO',
+              entity: 'EVENT',
+              entity_id: created.id,
+              details: { code, description, status: created.status, smn_alert: created.smn_alert },
+            },
+          });
+
+          return created;
+        })
+      );
+
+      res.status(201).json(newEvent);
+    } catch (error: unknown) {
+      console.error('Error al crear evento:', error);
+      res.status(500).json({ error: 'Error al crear evento' });
     }
-
-    const year = new Date().getFullYear();
-
-    const newEvent = await withTransactionRetry(() =>
-      prisma.$transaction(async (tx) => {
-        const code = await generateNextEventCode(tx, year);
-
-        const created = await tx.event.create({
-          data: {
-            code,
-            description,
-            status: status || event_status.RESPUESTA,
-            smn_alert: alertLevel || smn_alert.AMARILLA,
-            opened_by_id: req.user!.id,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            actor_id: req.user!.id,
-            action: 'CREAR_EVENTO',
-            entity: 'EVENT',
-            entity_id: created.id,
-            details: { code, description, status: created.status, smn_alert: created.smn_alert },
-          },
-        });
-
-        return created;
-      })
-    );
-
-    res.status(201).json(newEvent);
-  } catch (error) {
-    console.error('Error al crear evento:', error);
-    res.status(500).json({ error: 'Error al crear evento' });
   }
-});
+);
 
 // Actualizar evento (fases, alerta SMN, cierre)
-eventsRouter.patch('/:id', authenticateToken, requireGeneralCoordOrAdmin, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const { description, status, smn_alert: alertLevel } = req.body;
+eventsRouter.patch(
+  '/:id',
+  authenticateToken,
+  requireGeneralCoordOrAdmin,
+  validateBody(updateEventSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const { description, status, smn_alert: alertLevel } = req.body;
 
-    const current = await prisma.event.findUnique({ where: { id } });
-    if (!current) {
-      res.status(404).json({ error: 'Evento no encontrado' });
-      return;
-    }
-
-    const dataToUpdate: any = {};
-    if (description !== undefined) dataToUpdate.description = description;
-    if (status !== undefined) {
-      dataToUpdate.status = status;
-      if (status === event_status.CERRADO && !current.closed_at) {
-        dataToUpdate.closed_at = new Date();
-      } else if (status !== event_status.CERRADO) {
-        dataToUpdate.closed_at = null;
+      const current = await prisma.event.findUnique({ where: { id } });
+      if (!current) {
+        res.status(404).json({ error: 'Evento no encontrado' });
+        return;
       }
+
+      const dataToUpdate: Prisma.EventUpdateInput = {};
+      if (description !== undefined) dataToUpdate.description = description;
+      if (status !== undefined) {
+        dataToUpdate.status = status;
+        if (status === event_status.CERRADO && !current.closed_at) {
+          dataToUpdate.closed_at = new Date();
+        } else if (status !== event_status.CERRADO) {
+          dataToUpdate.closed_at = null;
+        }
+      }
+      if (alertLevel !== undefined) dataToUpdate.smn_alert = alertLevel;
+
+      const updated = await prisma.event.update({
+        where: { id },
+        data: dataToUpdate,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actor_id: req.user!.id,
+          action: 'ACTUALIZAR_EVENTO',
+          entity: 'EVENT',
+          entity_id: id,
+          details: dataToUpdate as Prisma.InputJsonValue,
+        },
+      });
+
+      res.json(updated);
+    } catch (error: unknown) {
+      console.error('Error al actualizar evento:', error);
+      res.status(500).json({ error: 'Error al actualizar evento' });
     }
-    if (alertLevel !== undefined) dataToUpdate.smn_alert = alertLevel;
-
-    const updated = await prisma.event.update({
-      where: { id },
-      data: dataToUpdate,
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        actor_id: req.user!.id,
-        action: 'ACTUALIZAR_EVENTO',
-        entity: 'EVENT',
-        entity_id: id,
-        details: dataToUpdate,
-      },
-    });
-
-    res.json(updated);
-  } catch (error) {
-    console.error('Error al actualizar evento:', error);
-    res.status(500).json({ error: 'Error al actualizar evento' });
   }
-});
+);

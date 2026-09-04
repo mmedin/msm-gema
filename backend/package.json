@@ -4,30 +4,33 @@
   "description": "Backend API para GEMA - Gestión de Eventos Meteorológicos Adversos (Municipalidad de Gral. San Martín)",
   "main": "dist/index.js",
   "scripts": {
-    "build": "prisma generate && tsc && tsc prisma/seed.ts --outDir dist/prisma --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-concurrency.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-security.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-performance.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck",
+    "build": "prisma generate && tsc && tsc prisma/seed.ts prisma/seed-master.ts prisma/seed-demo.ts --outDir dist/prisma --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-concurrency.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-security.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-performance.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck && tsc scripts/test-arch.ts --outDir dist/scripts --target ES2022 --module CommonJS --moduleResolution node --esModuleInterop --skipLibCheck",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push --accept-data-loss",
     "prisma:migrate": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
-    "seed:prod": "node dist/prisma/seed.js",
+    "seed:master": "tsx prisma/seed-master.ts",
+    "seed:demo": "tsx prisma/seed-demo.ts",
+    "seed:prod": "node dist/prisma/seed-master.js",
     "test:concurrency": "node dist/scripts/test-concurrency.js",
     "test:security": "node dist/scripts/test-security.js",
-    "test:perf": "node dist/scripts/test-performance.js"
+    "test:perf": "node dist/scripts/test-performance.js",
+    "test:arch": "node dist/scripts/test-arch.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

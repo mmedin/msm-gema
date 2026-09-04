@@ -100,13 +100,14 @@ export async function withTransactionRetry<T>(
   while (true) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
       attempt++;
+      const err = error as { code?: string; message?: string } | undefined;
       const isRetryable =
-        error?.code === 'P2002' ||
-        error?.code === 'P2034' ||
-        error?.message?.includes('deadlock') ||
-        error?.message?.includes('could not serialize access');
+        err?.code === 'P2002' ||
+        err?.code === 'P2034' ||
+        err?.message?.includes('deadlock') ||
+        err?.message?.includes('could not serialize access');
 
       if (attempt >= maxRetries || !isRetryable) {
         throw error;

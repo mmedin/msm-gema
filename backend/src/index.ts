@@ -112,7 +112,7 @@ app.use((_req, res) => {
 });
 
 // Manejo centralizado de errores
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error & { code?: string; status?: number; statusCode?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error global no capturado:', err);
 
   if (err.name === 'MulterError') {
