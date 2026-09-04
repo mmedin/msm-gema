@@ -12,7 +12,7 @@
 | :---: | :--- | :---: | :---: | :---: |
 | 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 7 | 7 | Completado |
 | 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | 3 | Completado |
-| 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 5 | 0 | Pendiente |
+| 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 5 | 5 | Completado |
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 0 | Pendiente |
 | 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | 0 | Pendiente |
 | 🟡 **P3** | [Frontend, UX Móvil y Navegación](#6-frontend-ux-móvil-y-navegación-p3) | 5 | 0 | Pendiente |
@@ -118,43 +118,43 @@
 
 ## 3. DevOps y Estabilidad de Despliegue (P1)
 
-### [OPS-01] Reemplazo de `prisma db push` por migraciones versionadas en Producción
+### [OPS-01] ✅ Reemplazo de `prisma db push` por migraciones versionadas en Producción
 * **Archivos involucrados:** `backend/entrypoint.sh`, `backend/prisma/`
 * **Problema:** En el inicio del contenedor se ejecuta `prisma db push --accept-data-loss`. En producción esto puede eliminar columnas o datos reales ante modificaciones del modelo y genera carreras en arquitecturas con múltiples réplicas.
 * **Criterios de Aceptación:**
-  - [ ] Se inicializa el historial de migraciones con `npx prisma migrate dev --name init`.
-  - [ ] `entrypoint.sh` ejecuta `npx prisma migrate deploy`.
-  - [ ] Se retira la bandera `--accept-data-loss` del entorno productivo.
+  - [x] Se inicializa el historial de migraciones con `npx prisma migrate dev --name init`.
+  - [x] `entrypoint.sh` ejecuta `npx prisma migrate deploy`.
+  - [x] Se retira la bandera `--accept-data-loss` del entorno productivo.
 
-### [OPS-02] Endurecimiento y Multi-Stage Build en Dockerfile del Backend
+### [OPS-02] ✅ Endurecimiento y Multi-Stage Build en Dockerfile del Backend
 * **Archivos involucrados:** `backend/Dockerfile`
 * **Problema:** El contenedor corre como `root` y retiene todas las dependencias de desarrollo (`typescript`, `tsx`, `prisma` CLI, compiladores) en la imagen productiva. Esto aumenta la superficie de ataque y el tamaño de la imagen (~200MB+ extras).
 * **Criterios de Aceptación:**
-  - [ ] Se configura un build multi-stage en Docker (etapa `builder` y etapa `runner`).
-  - [ ] La imagen final corre bajo el usuario sin privilegios `USER node`.
-  - [ ] Se instalan solo dependencias de producción (`npm install --omit=dev`).
+  - [x] Se configura un build multi-stage en Docker (etapa `builder` y etapa `runner`).
+  - [x] La imagen final corre bajo el usuario sin privilegios `USER node`.
+  - [x] Se instalan solo dependencias de producción (`npm install --omit=dev`).
 
-### [OPS-03] Generar y versionar `package-lock.json`
+### [OPS-03] ✅ Generar y versionar `package-lock.json`
 * **Archivos involucrados:** `backend/package.json`, `frontend/package.json`, `.gitignore`
 * **Problema:** No existe `package-lock.json` en ninguno de los dos proyectos (backend ni frontend). Esto significa que `npm install` dentro del Dockerfile puede resolver versiones distintas de dependencias en cada build, rompiendo la reproducibilidad. Un `npm install` hoy puede instalar una versión minor diferente a la de mañana.
 * **Criterios de Aceptación:**
-  - [ ] Se ejecuta `npm install` localmente en `backend/` y `frontend/` para generar los `package-lock.json`.
-  - [ ] Se commitean los `package-lock.json` al repositorio.
-  - [ ] Los Dockerfiles usan `npm ci` en vez de `npm install` para instalación determinista.
+  - [x] Se ejecuta `npm install` localmente en `backend/` y `frontend/` para generar los `package-lock.json`.
+  - [x] Se commitean los `package-lock.json` al repositorio.
+  - [x] Los Dockerfiles usan `npm ci` en vez de `npm install` para instalación determinista.
 
-### [OPS-04] Crear `.dockerignore` en backend y frontend
+### [OPS-04] ✅ Crear `.dockerignore` en backend y frontend
 * **Archivos involucrados:** `backend/.dockerignore` (nuevo), `frontend/.dockerignore` (nuevo)
 * **Problema:** Sin `.dockerignore`, el build context de Docker envía `node_modules/`, `.git/`, archivos temporales y cualquier otro archivo del directorio al daemon, generando imágenes más pesadas, builds más lentos y potencial filtración de datos sensibles a la imagen.
 * **Criterios de Aceptación:**
-  - [ ] Se crea `backend/.dockerignore` excluyendo como mínimo: `node_modules`, `dist`, `.git`, `.env`, `*.log`, `.DS_Store`.
-  - [ ] Se crea `frontend/.dockerignore` excluyendo como mínimo: `node_modules`, `dist`, `.git`, `.env`, `*.log`, `.DS_Store`.
+  - [x] Se crea `backend/.dockerignore` excluyendo como mínimo: `node_modules`, `dist`, `.git`, `.env`, `*.log`, `.DS_Store`.
+  - [x] Se crea `frontend/.dockerignore` excluyendo como mínimo: `node_modules`, `dist`, `.git`, `.env`, `*.log`, `.DS_Store`.
 
-### [OPS-05] Graceful shutdown del proceso Node.js
+### [OPS-05] ✅ Graceful shutdown del proceso Node.js
 * **Archivos involucrados:** `backend/src/index.ts`
 * **Problema:** No hay handlers para `SIGTERM` / `SIGINT`. Cuando Docker envía la señal de parada al contenedor, las conexiones activas de Prisma y las requests HTTP en curso se cortan abruptamente sin `prisma.$disconnect()` ni cierre limpio del servidor Express.
 * **Criterios de Aceptación:**
-  - [ ] Se registran handlers para `SIGTERM` y `SIGINT` que cierren el servidor HTTP y ejecuten `prisma.$disconnect()`.
-  - [ ] Se configura un `stop_grace_period` razonable en `docker-compose.yml` (ej. 15s).
+  - [x] Se registran handlers para `SIGTERM` y `SIGINT` que cierren el servidor HTTP y ejecuten `prisma.$disconnect()`.
+  - [x] Se configura un `stop_grace_period` razonable en `docker-compose.yml` (ej. 15s).
 
 ---
 

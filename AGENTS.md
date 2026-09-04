@@ -33,7 +33,7 @@ El stack opera mediante 3 servicios enlazados:
 | Servicio | Imagen / Contexto | Puerto Expuesto | Función |
 |---|---|---|---|
 | **`db`** | `postgres:16-alpine` | Interno (5432) | Base de datos relacional con enums nativos y healthcheck `pg_isready`. Persiste en volumen `db_data`. |
-| **`backend`** | `./backend` (`node:22-alpine`) | `4000:4000` | API REST Express + TypeScript + Prisma ORM. Ejecuta `db push` y siembra automática `prisma/seed.ts` al arrancar. Monta volumen `uploads_data` en `/app/uploads`. |
+| **`backend`** | `./backend` (`node:22-alpine`) | `4000:4000` | API REST Express + TypeScript + Prisma ORM. Multi-stage build no-root (`USER node`). Ejecuta `prisma migrate deploy` y siembra automática `dist/prisma/seed.js` al arrancar. Monta volumen `uploads_data` en `/app/uploads`. |
 | **`frontend`** | `./frontend` (`nginx:alpine`) | `3000:80` | SPA React 18/19 + Vite + Tailwind CSS + Leaflet. Sirve `/uploads/` con `autoindex off;`, capas `/datos-geo/` y hace fallback a `index.html`. |
 
 ### Volúmenes Persistentes:
@@ -48,7 +48,7 @@ En cumplimiento de la autonomía desatendida y sin confirmaciones intermedias, s
 
 1. **ORM Prisma + TypeScript CommonJS en Backend:**
    - Para evitar incompatibilidades ESM/CJS de Node en entornos Docker Alpine, el backend compila a CommonJS estricto con `tsconfig.json` ajustado y `prisma-client-js`.
-   - La sincronización inicial corre vía `npx prisma db push --accept-data-loss` seguido de `npx tsx prisma/seed.ts` en `entrypoint.sh`.
+   - La migración corre vía `npx prisma migrate deploy` seguido de `node dist/prisma/seed.js` en `entrypoint.sh` bajo usuario `USER node`.
 2. **Reverse Proxy Nginx en Frontend:**
    - Nginx redirige `/api/` hacia `http://backend:4000/api/`, permitiendo que el frontend funcione tanto detrás de un dominio único como con puertos desacoplados.
 3. **Almacenamiento de Evidencias:**
@@ -120,9 +120,14 @@ docker compose logs -f db
 docker compose logs -f frontend
 ```
 
+### Aplicar Migraciones Manualmente si se Desea:
+```bash
+docker compose exec backend npx prisma migrate deploy
+```
+
 ### Re-ejecutar Semilla Manualmente si se Desea:
 ```bash
-docker compose exec backend npx tsx prisma/seed.ts
+docker compose exec backend node dist/prisma/seed.js
 ```
 
 ### Ejecutar Pruebas Rápidas de API:

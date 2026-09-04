@@ -13,6 +13,7 @@ import { evacuationRouter } from './routes/evacuation';
 import { dashboardRouter } from './routes/dashboard';
 import { usersRouter } from './routes/users';
 import { areasRouter } from './routes/areas';
+import { prisma } from './db';
 
 const app = express();
 
@@ -123,7 +124,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-app.listen(config.port, '0.0.0.0', () => {
+const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`====================================================`);
   console.log(`GEMA (Gestión de Eventos Meteorológicos Adversos) - Backend Inicializado`);
   console.log(`Municipalidad de General San Martín`);
@@ -132,3 +133,38 @@ app.listen(config.port, '0.0.0.0', () => {
   console.log(`Uploads: ${config.uploadDir}`);
   console.log(`====================================================`);
 });
+
+let isShuttingDown = false;
+
+const gracefulShutdown = (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n[SHUTDOWN] Señal ${signal} recibida. Iniciando cierre ordenado de GEMA Backend...`);
+
+  const forceExitTimer = setTimeout(() => {
+    console.error('[SHUTDOWN] Tiempo límite de espera agotado (10s). Forzando salida.');
+    process.exit(1);
+  }, 10000);
+  forceExitTimer.unref();
+
+  server.close(async (err) => {
+    if (err) {
+      console.error('[SHUTDOWN] Error al cerrar servidor HTTP:', err);
+    } else {
+      console.log('[SHUTDOWN] Servidor HTTP cerrado correctamente.');
+    }
+
+    try {
+      console.log('[SHUTDOWN] Desconectando Prisma Client de PostgreSQL...');
+      await prisma.$disconnect();
+      console.log('[SHUTDOWN] Conexión a base de datos cerrada limpiamente.');
+      process.exit(0);
+    } catch (dbErr) {
+      console.error('[SHUTDOWN] Error cerrando conexión con base de datos:', dbErr);
+      process.exit(1);
+    }
+  });
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

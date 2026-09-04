@@ -152,8 +152,11 @@ docker compose logs -f backend
 # Ver logs del servidor web y proxy nginx
 docker compose logs -f frontend
 
-# Reinicializar la base de datos y correr seed manualmente
-docker compose exec backend npx tsx prisma/seed.ts
+# Aplicar migraciones de base de datos pendientes manualmente
+docker compose exec backend npx prisma migrate deploy
+
+# Re-ejecutar seed de datos manualmente
+docker compose exec backend node dist/prisma/seed.js
 
 # Detener el stack
 docker compose down

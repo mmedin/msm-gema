@@ -21,6 +21,7 @@ services:
       dockerfile: Dockerfile
     container_name: msm_crisis_backend
     restart: always
+    stop_grace_period: 15s
     depends_on:
       db:
         condition: service_healthy
