@@ -2,8 +2,12 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { occupancy_direction, user_role } from '@prisma/client';
+import { withTransactionRetry } from '../utils/atomicSequence';
 
 export const evacuationRouter = Router();
+
+// Factor de capacidad extrema máxima permitida (200% de la capacidad nominal del centro)
+const MAX_EXTREME_CAPACITY_FACTOR = 2.0;
 
 // Listar centros de evacuados con cálculo de ocupación actual
 evacuationRouter.get('/', authenticateToken, async (req: Request, res: Response): Promise<void> => {
@@ -74,12 +78,6 @@ evacuationRouter.post('/:id/occupancy', authenticateToken, async (req: Request, 
       return;
     }
 
-    const center = await prisma.evacuationCenter.findUnique({ where: { id } });
-    if (!center || !center.active) {
-      res.status(404).json({ error: 'Centro de evacuados no encontrado o inactivo' });
-      return;
-    }
-
     let targetEventId = event_id;
     if (!targetEventId) {
       const activeEvent = await prisma.event.findFirst({
@@ -93,58 +91,91 @@ evacuationRouter.post('/:id/occupancy', authenticateToken, async (req: Request, 
       targetEventId = activeEvent.id;
     }
 
-    // Obtener última ocupación registrada
-    const lastLog = await prisma.evacuationOccupancyLog.findFirst({
-      where: {
-        center_id: center.id,
-        event_id: targetEventId,
-      },
-      orderBy: { created_at: 'desc' },
-    });
+    const result = await withTransactionRetry(() =>
+      prisma.$transaction(async (tx) => {
+        // Bloqueo pesimista a nivel de fila sobre el centro de evacuados
+        const [center] = await tx.$queryRaw<
+          Array<{ id: string; name: string; capacity: number; active: boolean }>
+        >`
+          SELECT id, name, capacity, active
+          FROM evacuation_centers
+          WHERE id = ${id}
+          FOR UPDATE
+        `;
 
-    const currentOccupied = lastLog ? lastLog.occupied_after : 0;
-    const newOccupied = direction === 'INGRESO' ? currentOccupied + count : currentOccupied - count;
+        if (!center || !center.active) {
+          throw { status: 404, message: 'Centro de evacuados no encontrado o inactivo' };
+        }
 
-    // Regla de negocio: Un egreso nunca puede dejar la ocupación total en valores negativos (< 0)
-    if (newOccupied < 0) {
-      res.status(400).json({
-        error: `El egreso de ${count} persona(s) dejaría la ocupación en valores negativos (ocupación actual: ${currentOccupied})`,
-      });
+        // Obtener última ocupación registrada dentro de la fila bloqueada
+        const lastLog = await tx.evacuationOccupancyLog.findFirst({
+          where: {
+            center_id: center.id,
+            event_id: targetEventId,
+          },
+          orderBy: { created_at: 'desc' },
+        });
+
+        const currentOccupied = lastLog ? lastLog.occupied_after : 0;
+        const newOccupied = direction === 'INGRESO' ? currentOccupied + count : currentOccupied - count;
+
+        // Regla 1: Un egreso nunca puede dejar la ocupación total en valores negativos (< 0)
+        if (newOccupied < 0) {
+          throw {
+            status: 400,
+            message: `El egreso de ${count} persona(s) dejaría la ocupación en valores negativos (ocupación actual: ${currentOccupied})`,
+          };
+        }
+
+        // Regla 2: Límite de capacidad extrema permitida (200% de la capacidad nominal)
+        const maxExtremeCapacity = Math.floor(center.capacity * MAX_EXTREME_CAPACITY_FACTOR);
+        if (newOccupied > maxExtremeCapacity) {
+          throw {
+            status: 400,
+            message: `El ingreso solicitado de ${count} personas llevaría la ocupación a ${newOccupied}, superando la capacidad extrema permitida de ${maxExtremeCapacity} plazas (${MAX_EXTREME_CAPACITY_FACTOR * 100}% de la capacidad nominal de ${center.capacity}).`,
+          };
+        }
+
+        const log = await tx.evacuationOccupancyLog.create({
+          data: {
+            event_id: targetEventId,
+            center_id: center.id,
+            direction: direction as occupancy_direction,
+            people_count: count,
+            occupied_after: newOccupied,
+            notes: notes || null,
+            created_by_id: req.user!.id,
+          },
+          include: {
+            created_by: { select: { id: true, name: true, username: true } },
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actor_id: req.user!.id,
+            action: `OCUPACION_${direction}`,
+            entity: 'EVACUATION_CENTER',
+            entity_id: center.id,
+            details: { count, previous: currentOccupied, newOccupied, capacity: center.capacity },
+          },
+        });
+
+        return {
+          log,
+          current_occupied: newOccupied,
+          capacity: center.capacity,
+          capacity_exceeded: newOccupied > center.capacity,
+        };
+      })
+    );
+
+    res.status(201).json(result);
+  } catch (error: any) {
+    if (error?.status) {
+      res.status(error.status).json({ error: error.message });
       return;
     }
-
-    const log = await prisma.evacuationOccupancyLog.create({
-      data: {
-        event_id: targetEventId,
-        center_id: center.id,
-        direction: direction as occupancy_direction,
-        people_count: count,
-        occupied_after: newOccupied,
-        notes: notes || null,
-        created_by_id: req.user!.id,
-      },
-      include: {
-        created_by: { select: { id: true, name: true, username: true } },
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        actor_id: req.user!.id,
-        action: `OCUPACION_${direction}`,
-        entity: 'EVACUATION_CENTER',
-        entity_id: center.id,
-        details: { count, previous: currentOccupied, newOccupied, capacity: center.capacity },
-      },
-    });
-
-    res.status(201).json({
-      log,
-      current_occupied: newOccupied,
-      capacity: center.capacity,
-      capacity_exceeded: newOccupied > center.capacity,
-    });
-  } catch (error) {
     console.error('Error al registrar ocupación:', error);
     res.status(500).json({ error: 'Error al registrar movimiento de ocupación' });
   }

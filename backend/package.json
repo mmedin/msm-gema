@@ -9,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push --accept-data-loss",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "test:concurrency": "tsx scripts/test-concurrency.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

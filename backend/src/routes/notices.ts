@@ -3,6 +3,7 @@ import { prisma } from '../db';
 import { authenticateToken } from '../middleware/auth';
 import { upload, cleanupUploadedFile } from '../middleware/upload';
 import { notice_status, life_risk, trend, incident_status } from '@prisma/client';
+import { generateNextIncidentCode, withTransactionRetry } from '../utils/atomicSequence';
 
 export const noticesRouter = Router();
 
@@ -130,70 +131,92 @@ noticesRouter.patch('/:id/convert', authenticateToken, async (req: Request, res:
     const { id } = req.params;
     const { title, type_code } = req.body;
 
-    const notice = await prisma.notice.findUnique({
-      where: { id },
-    });
+    const result = await withTransactionRetry(() =>
+      prisma.$transaction(async (tx) => {
+        // Bloquear aviso FOR UPDATE para evitar conversiones duplicadas concurrentes
+        const [notice] = await tx.$queryRaw<
+          Array<{
+            id: string;
+            event_id: string;
+            status: notice_status;
+            description: string;
+            location_text: string;
+            lat: number | null;
+            lng: number | null;
+            location_pending: boolean;
+            life_risk: life_risk;
+            trend: trend;
+          }>
+        >`
+          SELECT id, event_id, status, description, location_text, lat, lng, location_pending, life_risk, trend
+          FROM notices
+          WHERE id = ${id}
+          FOR UPDATE
+        `;
 
-    if (!notice) {
-      res.status(404).json({ error: 'Aviso no encontrado' });
+        if (!notice) {
+          throw { status: 404, message: 'Aviso no encontrado' };
+        }
+
+        if (notice.status === notice_status.CONVERTIDO || notice.status === notice_status.VINCULADO) {
+          throw { status: 400, message: 'Este aviso ya fue procesado o vinculado previamente' };
+        }
+
+        // Generar código único correlativo atómico dentro del evento bloqueando el evento
+        const code = await generateNextIncidentCode(tx, notice.event_id);
+
+        // Crear nuevo incidente con datos del aviso
+        const incident = await tx.incident.create({
+          data: {
+            code,
+            event_id: notice.event_id,
+            title: title || `Incidente: ${notice.description.slice(0, 50)}...`,
+            type_code: type_code || 'INUNDACION_ANEGAMIENTO',
+            description: notice.description,
+            location_text: notice.location_text,
+            lat: notice.lat,
+            lng: notice.lng,
+            location_pending: notice.location_pending,
+            life_risk: notice.life_risk,
+            trend: notice.trend,
+            status: incident_status.RECIBIDO,
+            created_by_id: req.user!.id,
+            last_activity_at: new Date(),
+          },
+        });
+
+        // Actualizar aviso
+        const updatedNotice = await tx.notice.update({
+          where: { id },
+          data: {
+            status: notice_status.CONVERTIDO,
+            incident_id: incident.id,
+          },
+          include: {
+            incident: true,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actor_id: req.user!.id,
+            action: 'CONVERTIR_AVISO_A_INCIDENTE',
+            entity: 'NOTICE',
+            entity_id: notice.id,
+            details: { incident_id: incident.id, incident_code: incident.code },
+          },
+        });
+
+        return { notice: updatedNotice, incident };
+      })
+    );
+
+    res.json(result);
+  } catch (error: any) {
+    if (error?.status) {
+      res.status(error.status).json({ error: error.message });
       return;
     }
-
-    if (notice.status === notice_status.CONVERTIDO || notice.status === notice_status.VINCULADO) {
-      res.status(400).json({ error: 'Este aviso ya fue procesado o vinculado previamente' });
-      return;
-    }
-
-    // Generar código único para el incidente dentro del evento
-    const countIncidents = await prisma.incident.count({
-      where: { event_id: notice.event_id },
-    });
-    const code = `INC-${String(countIncidents + 1).padStart(3, '0')}`;
-
-    // Crear nuevo incidente con datos del aviso
-    const incident = await prisma.incident.create({
-      data: {
-        code,
-        event_id: notice.event_id,
-        title: title || `Incidente: ${notice.description.slice(0, 50)}...`,
-        type_code: type_code || 'INUNDACION_ANEGAMIENTO',
-        description: notice.description,
-        location_text: notice.location_text,
-        lat: notice.lat,
-        lng: notice.lng,
-        location_pending: notice.location_pending,
-        life_risk: notice.life_risk,
-        trend: notice.trend,
-        status: incident_status.RECIBIDO,
-        created_by_id: req.user!.id,
-        last_activity_at: new Date(),
-      },
-    });
-
-    // Actualizar aviso
-    const updatedNotice = await prisma.notice.update({
-      where: { id },
-      data: {
-        status: notice_status.CONVERTIDO,
-        incident_id: incident.id,
-      },
-      include: {
-        incident: true,
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        actor_id: req.user!.id,
-        action: 'CONVERTIR_AVISO_A_INCIDENTE',
-        entity: 'NOTICE',
-        entity_id: notice.id,
-        details: { incident_id: incident.id, incident_code: incident.code },
-      },
-    });
-
-    res.json({ notice: updatedNotice, incident });
-  } catch (error) {
     console.error('Error al convertir aviso:', error);
     res.status(500).json({ error: 'Error al convertir aviso a incidente' });
   }

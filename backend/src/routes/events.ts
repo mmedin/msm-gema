@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken, requireGeneralCoordOrAdmin } from '../middleware/auth';
 import { event_status, smn_alert } from '@prisma/client';
+import { generateNextEventCode, withTransactionRetry } from '../utils/atomicSequence';
 
 export const eventsRouter = Router();
 
@@ -80,33 +81,34 @@ eventsRouter.post('/', authenticateToken, requireGeneralCoordOrAdmin, async (req
     }
 
     const year = new Date().getFullYear();
-    const countThisYear = await prisma.event.count({
-      where: {
-        code: { startsWith: `${year}-` },
-      },
-    });
 
-    const code = `${year}-${String(countThisYear + 1).padStart(3, '0')}`;
+    const newEvent = await withTransactionRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const code = await generateNextEventCode(tx, year);
 
-    const newEvent = await prisma.event.create({
-      data: {
-        code,
-        description,
-        status: status || event_status.RESPUESTA,
-        smn_alert: alertLevel || smn_alert.AMARILLA,
-        opened_by_id: req.user!.id,
-      },
-    });
+        const created = await tx.event.create({
+          data: {
+            code,
+            description,
+            status: status || event_status.RESPUESTA,
+            smn_alert: alertLevel || smn_alert.AMARILLA,
+            opened_by_id: req.user!.id,
+          },
+        });
 
-    await prisma.auditLog.create({
-      data: {
-        actor_id: req.user!.id,
-        action: 'CREAR_EVENTO',
-        entity: 'EVENT',
-        entity_id: newEvent.id,
-        details: { code, description, status: newEvent.status, smn_alert: newEvent.smn_alert },
-      },
-    });
+        await tx.auditLog.create({
+          data: {
+            actor_id: req.user!.id,
+            action: 'CREAR_EVENTO',
+            entity: 'EVENT',
+            entity_id: created.id,
+            details: { code, description, status: created.status, smn_alert: created.smn_alert },
+          },
+        });
+
+        return created;
+      })
+    );
 
     res.status(201).json(newEvent);
   } catch (error) {

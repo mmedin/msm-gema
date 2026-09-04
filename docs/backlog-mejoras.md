@@ -10,7 +10,7 @@
 | Prioridad | Épica / Dominio | Tareas | Estado |
 | :---: | :--- | :---: | :---: |
 | 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 3 | Completado |
-| 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | Pendiente |
+| 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | Completado |
 | 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 2 | Pendiente |
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | Pendiente |
 | 🟠 **P2** | [Autonomía Offline y Redundancia](#5-autonomía-offline-y-redundancia-p2) | 1 | Pendiente |
@@ -52,26 +52,26 @@
 ## 2. Concurrencia e Integridad Transaccional (P1)
 
 ### [DATA-01] Generación atómica de códigos correlativos (TAR-xxx, INC-xxx, YYYY-xxx)
-* **Archivos involucrados:** `backend/src/routes/tasks.ts`, `backend/src/routes/incidents.ts`, `backend/src/routes/events.ts`
+* **Archivos involucrados:** `backend/src/routes/tasks.ts`, `backend/src/routes/incidents.ts`, `backend/src/routes/events.ts`, `backend/src/routes/notices.ts`, `backend/src/utils/atomicSequence.ts`
 * **Problema:** Se calcula el correlativo haciendo `count() + 1`. Ante peticiones concurrentes de operadores durante una tormenta, el recuento arroja el mismo valor, provocando colisión de clave única (`@@unique([event_id, code])`) y errores 500 no recuperables.
 * **Criterios de Aceptación:**
-  - [ ] Los códigos se generan usando secuencias de PostgreSQL (`CREATE SEQUENCE`) o lógica de reintento/bloqueo a nivel de evento.
-  - [ ] Dos peticiones concurrentes en el mismo milisegundo obtienen correlativos consecutivos sin colisión.
+  - [x] Los códigos se generan usando secuencias de PostgreSQL (`CREATE SEQUENCE`) o lógica de reintento/bloqueo a nivel de evento.
+  - [x] Dos peticiones concurrentes en el mismo milisegundo obtienen correlativos consecutivos sin colisión.
 
 ### [DATA-02] Control transaccional y prevención de carreras en ocupación de refugios
 * **Archivos involucrados:** `backend/src/routes/evacuation.ts`
 * **Problema:** El cálculo de `newOccupied` lee el último registro con `findFirst` y crea uno nuevo sin transacción ni bloqueo a nivel de fila. Dos ingresos simultáneos pisan el total del centro de evacuados.
 * **Criterios de Aceptación:**
-  - [ ] El registro de ocupación se ejecuta dentro de un `prisma.$transaction`.
-  - [ ] Se bloquea la fila del centro de evacuados (`FOR UPDATE`) antes de leer y calcular el balance.
-  - [ ] Si el balance resultante fuera negativo o superara la capacidad extrema permitida, se rechaza la transacción de forma consistente.
+  - [x] El registro de ocupación se ejecuta dentro de un `prisma.$transaction`.
+  - [x] Se bloquea la fila del centro de evacuados (`FOR UPDATE`) antes de leer y calcular el balance.
+  - [x] Si el balance resultante fuera negativo o superara la capacidad extrema permitida, se rechaza la transacción de forma consistente.
 
 ### [DATA-03] Uso de transacciones Prisma en operaciones multi-tabla
 * **Archivos involucrados:** `backend/src/routes/notices.ts`, `backend/src/routes/tasks.ts`
 * **Problema:** La conversión de avisos a incidentes y la creación de tareas con actualización de incidentes ocurren en pasos independientes fuera de una transacción.
 * **Criterios de Aceptación:**
-  - [ ] `noticesRouter.patch('/:id/convert')` agrupa `incident.create`, `notice.update` y `auditLog.create` dentro de un `$transaction`.
-  - [ ] `tasksRouter.post('/')` agrupa `task.create`, `incident.update` y `auditLog.create` dentro de un `$transaction`.
+  - [x] `noticesRouter.patch('/:id/convert')` agrupa `incident.create`, `notice.update` y `auditLog.create` dentro de un `$transaction`.
+  - [x] `tasksRouter.post('/')` agrupa `task.create`, `incident.update` y `auditLog.create` dentro de un `$transaction`.
 
 ---
 

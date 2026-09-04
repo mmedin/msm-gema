@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken, requireTriage, requireGeneralCoordOrAdmin } from '../middleware/auth';
 import { priority, incident_status, task_status } from '@prisma/client';
+import { generateNextIncidentCode, withTransactionRetry } from '../utils/atomicSequence';
 
 export const incidentsRouter = Router();
 
@@ -18,8 +19,8 @@ incidentsRouter.get('/', authenticateToken, async (req: Request, res: Response):
     const incidents = await prisma.incident.findMany({
       where: whereClause,
       orderBy: [
-        { priority: 'asc' }, // P1, P2, P3, P4
-        { created_at: 'desc' },
+        { priority: 'asc' }, // P1 primero
+        { last_activity_at: 'desc' },
       ],
       include: {
         created_by: { select: { id: true, name: true, username: true } },
@@ -109,45 +110,57 @@ incidentsRouter.post('/', authenticateToken, async (req: Request, res: Response)
       return;
     }
 
-    const countIncidents = await prisma.incident.count({
-      where: { event_id },
-    });
-    const code = `INC-${String(countIncidents + 1).padStart(3, '0')}`;
-
     const isLocationPending = location_pending === 'true' || location_pending === true;
 
-    const incident = await prisma.incident.create({
-      data: {
-        code,
-        event_id,
-        title,
-        type_code: type_code || 'INUNDACION_ANEGAMIENTO',
-        description,
-        location_text: location_text || 'Ubicación a determinar',
-        lat: lat ? parseFloat(lat) : null,
-        lng: lng ? parseFloat(lng) : null,
-        location_pending: isLocationPending,
-        life_risk: lifeRiskVal || 'DESCONOCIDO',
-        trend: trendVal || 'DESCONOCIDA',
-        priority: prioVal || null,
-        status: prioVal ? incident_status.PRIORIZADO : incident_status.RECIBIDO,
-        created_by_id: req.user!.id,
-        last_activity_at: new Date(),
-      },
-    });
+    const incident = await withTransactionRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const event = await tx.event.findUnique({ where: { id: event_id } });
+        if (!event) {
+          throw { status: 404, message: 'Evento no encontrado' };
+        }
 
-    await prisma.auditLog.create({
-      data: {
-        actor_id: req.user!.id,
-        action: 'CREAR_INCIDENTE',
-        entity: 'INCIDENT',
-        entity_id: incident.id,
-        details: { code, title, priority: prioVal },
-      },
-    });
+        const code = await generateNextIncidentCode(tx, event_id);
+
+        const created = await tx.incident.create({
+          data: {
+            code,
+            event_id,
+            title,
+            type_code: type_code || 'INUNDACION_ANEGAMIENTO',
+            description,
+            location_text: location_text || 'Ubicación a determinar',
+            lat: lat ? parseFloat(lat) : null,
+            lng: lng ? parseFloat(lng) : null,
+            location_pending: isLocationPending,
+            life_risk: lifeRiskVal || 'DESCONOCIDO',
+            trend: trendVal || 'DESCONOCIDA',
+            priority: prioVal || null,
+            status: prioVal ? incident_status.PRIORIZADO : incident_status.RECIBIDO,
+            created_by_id: req.user!.id,
+            last_activity_at: new Date(),
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actor_id: req.user!.id,
+            action: 'CREAR_INCIDENTE',
+            entity: 'INCIDENT',
+            entity_id: created.id,
+            details: { code, title, priority: prioVal },
+          },
+        });
+
+        return created;
+      })
+    );
 
     res.status(201).json(incident);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
     console.error('Error al crear incidente:', error);
     res.status(500).json({ error: 'Error al registrar incidente' });
   }

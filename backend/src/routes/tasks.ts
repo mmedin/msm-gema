@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken } from '../middleware/auth';
 import { task_status, user_role, coordination_scope, priority, incident_status } from '@prisma/client';
+import { generateNextTaskCode, withTransactionRetry } from '../utils/atomicSequence';
 
 export const tasksRouter = Router();
 
@@ -83,69 +84,75 @@ tasksRouter.post('/', authenticateToken, async (req: Request, res: Response): Pr
       return;
     }
 
-    const incident = await prisma.incident.findUnique({ where: { id: incident_id } });
-    if (!incident) {
-      res.status(404).json({ error: 'Incidente no encontrado' });
-      return;
-    }
+    const task = await withTransactionRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const incident = await tx.incident.findUnique({ where: { id: incident_id } });
+        if (!incident) {
+          throw { status: 404, message: 'Incidente no encontrado' };
+        }
 
-    // Buscar coordinador del área si existe
-    const areaCoord = await prisma.user.findFirst({
-      where: {
-        area_id,
-        role: user_role.COORDINACION,
-        active: true,
-      },
-    });
+        // Buscar coordinador del área si existe
+        const areaCoord = await tx.user.findFirst({
+          where: {
+            area_id,
+            role: user_role.COORDINACION,
+            active: true,
+          },
+        });
 
-    // Código correlativo de tarea por evento
-    const countTasks = await prisma.task.count({
-      where: { event_id: incident.event_id },
-    });
-    const code = `TAR-${String(countTasks + 1).padStart(3, '0')}`;
+        // Generar código correlativo de tarea bloqueando el evento con FOR UPDATE
+        const code = await generateNextTaskCode(tx, incident.event_id);
 
-    const task = await prisma.task.create({
-      data: {
-        code,
-        incident_id,
-        event_id: incident.event_id,
-        action,
-        priority: taskPrio || incident.priority || priority.P2,
-        status: task_status.ASIGNADA,
-        area_id,
-        area_coordinator_id: areaCoord ? areaCoord.id : null,
-        assigned_area_at: new Date(),
-        last_activity_at: new Date(),
-      },
-      include: {
-        area: true,
-        area_coordinator: { select: { id: true, name: true, username: true } },
-      },
-    });
+        const createdTask = await tx.task.create({
+          data: {
+            code,
+            incident_id,
+            event_id: incident.event_id,
+            action,
+            priority: taskPrio || incident.priority || priority.P2,
+            status: task_status.ASIGNADA,
+            area_id,
+            area_coordinator_id: areaCoord ? areaCoord.id : null,
+            assigned_area_at: new Date(),
+            last_activity_at: new Date(),
+          },
+          include: {
+            area: true,
+            area_coordinator: { select: { id: true, name: true, username: true } },
+          },
+        });
 
-    // Actualizar estado del incidente si correspondiera
-    if (incident.status === incident_status.RECIBIDO || incident.status === incident_status.PRIORIZADO) {
-      await prisma.incident.update({
-        where: { id: incident.id },
-        data: {
-          status: incident_status.ASIGNADO,
-          last_activity_at: new Date(),
-        },
-      });
-    }
+        // Actualizar estado del incidente si correspondiera
+        if (incident.status === incident_status.RECIBIDO || incident.status === incident_status.PRIORIZADO) {
+          await tx.incident.update({
+            where: { id: incident.id },
+            data: {
+              status: incident_status.ASIGNADO,
+              last_activity_at: new Date(),
+            },
+          });
+        }
 
-    await prisma.auditLog.create({
-      data: {
-        actor_id: req.user!.id,
-        action: 'CREAR_TAREA_ETAPA_1',
-        entity: 'TASK',
-        entity_id: task.id,
-        details: { code, area_id, incident_id },
-      },
-    });
+        await tx.auditLog.create({
+          data: {
+            actor_id: req.user!.id,
+            action: 'CREAR_TAREA_ETAPA_1',
+            entity: 'TASK',
+            entity_id: createdTask.id,
+            details: { code, area_id, incident_id },
+          },
+        });
+
+        return createdTask;
+      })
+    );
 
     res.status(201).json(task);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
     console.error('Error al crear tarea:', error);
     res.status(500).json({ error: 'Error al registrar tarea' });
   }
