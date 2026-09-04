@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push --accept-data-loss",
     "seed": "tsx prisma/seed.ts",
-    "test:concurrency": "tsx scripts/test-concurrency.ts"
+    "test:concurrency": "tsx scripts/test-concurrency.ts",
+    "test:security": "tsx scripts/test-security.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

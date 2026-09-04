@@ -10,7 +10,7 @@
 
 | Prioridad | Épica / Dominio | Tareas | Completadas | Estado |
 | :---: | :--- | :---: | :---: | :---: |
-| 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 7 | 3 | Parcial |
+| 🔴 **P1** | [Seguridad y Control de Acceso](#1-seguridad-y-control-de-acceso-p1) | 7 | 7 | Completado |
 | 🔴 **P1** | [Concurrencia e Integridad Transaccional](#2-concurrencia-e-integridad-transaccional-p1) | 3 | 3 | Completado |
 | 🔴 **P1** | [DevOps y Estabilidad de Despliegue](#3-devops-y-estabilidad-de-despliegue-p1) | 5 | 0 | Pendiente |
 | 🟠 **P2** | [Rendimiento y Optimización de Base de Datos](#4-rendimiento-y-optimización-de-base-de-datos-p2) | 3 | 0 | Pendiente |
@@ -48,7 +48,7 @@
   - [x] Se agrega `express-rate-limit` en `/api/auth/login` (máx. 10 intentos por minuto por IP).
   - [x] El frontend redirige fluidamente al login al recibir un 401.
 
-### [SEC-04] Eliminación de secrets hardcodeados como fallback
+### [SEC-04] ✅ Eliminación de secrets hardcodeados como fallback
 * **Archivos involucrados:** `backend/src/config.ts`, `docker-compose.yml`, `.env.example`
 * **Problema:** El JWT secret y la contraseña de PostgreSQL tienen valores por defecto estáticos en el código fuente y en el docker-compose. Cualquiera con acceso al repositorio puede forjar tokens válidos o conectarse a la base de datos.
   ```typescript
@@ -62,30 +62,31 @@
   JWT_SECRET: ${JWT_SECRET:-super_secreto_para_jwt_crisis_san_martin_2026}
   ```
 * **Criterios de Aceptación:**
-  - [ ] `config.ts` lanza un error fatal al arrancar si `JWT_SECRET` o `DATABASE_URL` no están definidos como variables de entorno (fail fast, sin fallback).
-  - [ ] `docker-compose.yml` no contiene valores por defecto para `POSTGRES_PASSWORD` ni `JWT_SECRET`.
-  - [ ] `.env.example` documenta los valores como placeholders que deben cambiarse, no como valores funcionales.
+  - [x] `config.ts` lanza un error fatal al arrancar si `JWT_SECRET` o `DATABASE_URL` no están definidos como variables de entorno (fail fast, sin fallback).
+  - [x] `docker-compose.yml` no contiene valores por defecto para `POSTGRES_PASSWORD` ni `JWT_SECRET`.
+  - [x] `.env.example` documenta los valores como placeholders que deben cambiarse, no como valores funcionales.
 
-### [SEC-05] JWT de larga duración sin mecanismo de revocación
+### [SEC-05] ✅ JWT de larga duración sin mecanismo de revocación
 * **Archivos involucrados:** `backend/src/routes/auth.ts`, `backend/src/middleware/auth.ts`
 * **Problema:** El token JWT tiene una vida útil de 24 horas (`expiresIn: '24h'` en `auth.ts:57`). Si un operario pierde el celular o un administrador desactiva una cuenta, el token sigue siendo válido hasta su expiración. El middleware `authenticateToken` confía exclusivamente en la firma del JWT sin re-verificar contra la base de datos, por lo que un usuario con `active: false` puede seguir operando. (Nota: el endpoint `/auth/me` sí valida `active`, pero no protege las demás rutas.)
 * **Criterios de Aceptación:**
-  - [ ] El middleware `authenticateToken` verifica el campo `active` del usuario contra la DB en cada request (con caché en memoria breve de ~60s para no degradar performance).
-  - [ ] Se reduce la vida del token a 1-2 horas con un endpoint de refresh, o se implementa una blacklist de tokens en Redis/memoria.
+  - [x] El middleware `authenticateToken` verifica el campo `active` del usuario contra la DB en cada request (con caché en memoria breve de ~60s para no degradar performance).
+  - [x] Se reduce la vida del token a 1-2 horas con un endpoint de refresh, o se implementa una blacklist de tokens en Redis/memoria.
 
-### [SEC-06] Sin validación de complejidad de contraseña
+### [SEC-06] ✅ Sin validación de complejidad de contraseña
 * **Archivos involucrados:** `backend/src/routes/users.ts`
 * **Problema:** Los endpoints de creación (`POST /users`) y reseteo (`PATCH /users/:id`) de usuario aceptan cualquier contraseña sin validar largo mínimo, complejidad o diccionario. Un administrador podría establecer `"1"` como contraseña de un operador.
 * **Criterios de Aceptación:**
-  - [ ] Se exige un mínimo de 8 caracteres para las contraseñas.
-  - [ ] Se provee un mensaje de error descriptivo cuando la contraseña no cumple los requisitos.
+  - [x] Se exige un mínimo de 8 caracteres para las contraseñas.
+  - [x] Se provee un mensaje de error descriptivo cuando la contraseña no cumple los requisitos.
 
-### [SEC-07] Token almacenado en `localStorage` (vulnerable a XSS)
+### [SEC-07] ✅ Token almacenado en `localStorage` (vulnerable a XSS)
 * **Archivos involucrados:** `frontend/src/api.ts`
 * **Problema:** El JWT se almacena en `localStorage` (`api.ts:19`). Aunque Helmet mitiga vectores XSS desde el backend, `localStorage` es accesible desde cualquier script que corra en el mismo origen. Una `httpOnly cookie` sería más seguro para un sistema gubernamental de misión crítica.
 * **Criterios de Aceptación:**
-  - [ ] Se evalúa migración a `httpOnly` + `Secure` + `SameSite=Strict` cookie.
-  - [ ] Si se mantiene `localStorage`, se documenta la decisión con análisis de riesgo aceptado y se asegura CSP estricto en Nginx.
+  - [x] Se evalúa migración a `httpOnly` + `Secure` + `SameSite=Strict` cookie.
+  - [x] Si se mantiene `localStorage`, se documenta la decisión con análisis de riesgo aceptado y se asegura CSP estricto en Nginx.
+* **Resolución:** Se documenta la decisión en [ADR SEC-07](adr-sec07-localstorage.md). Se mantiene `localStorage` con CSP estricto en Nginx como mitigación.
 
 ---
 

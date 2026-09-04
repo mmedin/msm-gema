@@ -6,11 +6,11 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-msm_crisis}
       POSTGRES_USER: ${POSTGRES_USER:-crisis_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crisis_secret_2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Debe definir POSTGRES_PASSWORD en .env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crisis_user} -d ${POSTGRES_DB:-msm_crisis}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-crisis_user} -d $${POSTGRES_DB:-msm_crisis}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -29,8 +29,8 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-crisis_user}:${POSTGRES_PASSWORD:-crisis_secret_2026}@db:5432/${POSTGRES_DB:-msm_crisis}
-      JWT_SECRET: ${JWT_SECRET:-super_secreto_para_jwt_crisis_san_martin_2026}
+      DATABASE_URL: postgres://${POSTGRES_USER:-crisis_user}:${POSTGRES_PASSWORD:?Debe definir POSTGRES_PASSWORD en .env}@db:5432/${POSTGRES_DB:-msm_crisis}
+      JWT_SECRET: ${JWT_SECRET:?Debe definir JWT_SECRET en .env}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       UPLOAD_DIR: /app/uploads
       RATE_LIMIT_LOGIN_WINDOW_MS: ${RATE_LIMIT_LOGIN_WINDOW_MS:-60000}

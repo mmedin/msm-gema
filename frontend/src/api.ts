@@ -82,6 +82,11 @@ export const api = {
 
   getMe: () => request<User>('/auth/me'),
 
+  refreshToken: () =>
+    request<{ token: string; user: User }>('/auth/refresh', {
+      method: 'POST',
+    }),
+
   // Eventos
   getEvents: () => request<Event[]>('/events'),
   getActiveEvent: () => request<Event>('/events/active'),

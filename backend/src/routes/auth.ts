@@ -54,7 +54,7 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
       can_triage: user.can_triage,
     };
 
-    const token = jwt.sign(payload, config.jwtSecret, { expiresIn: '24h' });
+    const token = jwt.sign(payload, config.jwtSecret, { expiresIn: '2h' });
 
     res.json({
       token,
@@ -105,5 +105,55 @@ authRouter.get('/me', authenticateToken, async (req: Request, res: Response): Pr
   } catch (error) {
     console.error('Error en /auth/me:', error);
     res.status(500).json({ error: 'Error interno al consultar usuario' });
+  }
+});
+
+// Endpoint de refresh: emite un nuevo token si el actual es válido y el usuario sigue activo.
+// El frontend llama a este endpoint periódicamente (~50 min) para mantener la sesión sin reloguear.
+authRouter.post('/refresh', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'No autenticado' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: { area: true },
+    });
+
+    if (!user || !user.active) {
+      res.status(401).json({ error: 'Usuario inactivo o no encontrado' });
+      return;
+    }
+
+    const payload = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      coordination_scope: user.coordination_scope,
+      area_id: user.area_id,
+      can_triage: user.can_triage,
+    };
+
+    const token = jwt.sign(payload, config.jwtSecret, { expiresIn: '2h' });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        coordination_scope: user.coordination_scope,
+        area_id: user.area_id,
+        area: user.area ? { id: user.area.id, code: user.area.code, name: user.area.name } : null,
+        can_triage: user.can_triage,
+      },
+    });
+  } catch (error) {
+    console.error('Error en /auth/refresh:', error);
+    res.status(500).json({ error: 'Error interno al refrescar token' });
   }
 });

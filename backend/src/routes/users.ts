@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, invalidateActiveStatusCache } from '../middleware/auth';
 import { user_role, coordination_scope } from '@prisma/client';
+import { validatePassword } from '../utils/passwordValidation';
 
 export const usersRouter = Router();
 
@@ -86,6 +87,12 @@ usersRouter.post('/', authenticateToken, requireRole(user_role.ADMINISTRADOR), a
       return;
     }
 
+    const pwResult = validatePassword(password);
+    if (!pwResult.valid) {
+      res.status(400).json({ error: pwResult.message });
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
@@ -141,6 +148,11 @@ usersRouter.patch('/:id', authenticateToken, requireRole(user_role.ADMINISTRADOR
     if (can_triage !== undefined) dataToUpdate.can_triage = !!can_triage;
     if (active !== undefined) dataToUpdate.active = active;
     if (password) {
+      const pwResult = validatePassword(password);
+      if (!pwResult.valid) {
+        res.status(400).json({ error: pwResult.message });
+        return;
+      }
       dataToUpdate.password_hash = await bcrypt.hash(password, 10);
     }
 
@@ -169,6 +181,9 @@ usersRouter.patch('/:id', authenticateToken, requireRole(user_role.ADMINISTRADOR
         details: { updatedFields: Object.keys(dataToUpdate) },
       },
     });
+
+    // Invalidar caché de estado activo para efecto inmediato al desactivar usuarios
+    invalidateActiveStatusCache(id);
 
     res.json(updated);
   } catch (error) {

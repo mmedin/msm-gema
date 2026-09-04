@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
+import { prisma } from '../db';
 import { user_role, coordination_scope } from '@prisma/client';
 
 export interface TokenPayload {
@@ -21,7 +22,28 @@ declare global {
   }
 }
 
-export const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {
+// ---------------------------------------------------------------------------
+// Caché en memoria del estado "active" del usuario (TTL configurable, default 60s)
+// Evita una consulta a la DB en cada request, pero garantiza que un usuario
+// desactivado deje de operar en un máximo de ACTIVE_CACHE_TTL_MS milisegundos.
+// ---------------------------------------------------------------------------
+interface ActiveCacheEntry {
+  active: boolean;
+  cachedAt: number;
+}
+
+const activeStatusCache = new Map<string, ActiveCacheEntry>();
+const ACTIVE_CACHE_TTL_MS = 60_000; // 60 segundos
+
+/**
+ * Invalida la entrada de caché para un usuario específico.
+ * Llamar al desactivar o modificar el estado de un usuario para efecto inmediato.
+ */
+export function invalidateActiveStatusCache(userId: string): void {
+  activeStatusCache.delete(userId);
+}
+
+export const authenticateToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
@@ -32,10 +54,32 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret) as TokenPayload;
+
+    // Verificar que el usuario siga activo en la DB (con caché de 60s)
+    const now = Date.now();
+    const cached = activeStatusCache.get(decoded.id);
+
+    if (!cached || (now - cached.cachedAt) > ACTIVE_CACHE_TTL_MS) {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { active: true },
+      });
+      const isActive = user?.active ?? false;
+      activeStatusCache.set(decoded.id, { active: isActive, cachedAt: now });
+
+      if (!isActive) {
+        res.status(401).json({ error: 'Usuario desactivado. Contacte al administrador' });
+        return;
+      }
+    } else if (!cached.active) {
+      res.status(401).json({ error: 'Usuario desactivado. Contacte al administrador' });
+      return;
+    }
+
     req.user = decoded;
     next();
-  } catch (err: any) {
-    if (err && err.name === 'TokenExpiredError') {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'name' in err && err.name === 'TokenExpiredError') {
       res.status(401).json({ error: 'Token expirado. Inicie sesión nuevamente' });
       return;
     }
@@ -89,3 +133,4 @@ export const requireTriage = (req: Request, res: Response, next: NextFunction): 
 
   next();
 };
+

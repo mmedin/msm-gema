@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, Event } from '../types';
 import { api, getToken, removeToken, setToken } from '../api';
 
@@ -15,10 +15,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Intervalo de refresh del token: 50 minutos (antes de que expire el JWT de 2h)
+const TOKEN_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [activeEvent, setActiveEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshUser = async () => {
     try {
@@ -43,6 +47,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('No hay evento activo disponible');
     }
   };
+
+  const logout = useCallback(() => {
+    removeToken();
+    setUser(null);
+  }, []);
+
+  // Refresh periódico del token para mantener la sesión viva (JWT de 2h)
+  useEffect(() => {
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+
+    if (!user) return;
+
+    refreshIntervalRef.current = setInterval(async () => {
+      try {
+        const token = getToken();
+        if (!token) return;
+
+        const res = await api.refreshToken();
+        setToken(res.token);
+        setUser(res.user);
+      } catch (err) {
+        // Si el refresh falla (401 por usuario desactivado o token expirado), desloguear
+        console.warn('Falló el refresh del token, cerrando sesión');
+        logout();
+      }
+    }, TOKEN_REFRESH_INTERVAL_MS);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [user, logout]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -72,11 +113,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(res.token);
     setUser(res.user);
     await refreshActiveEvent();
-  };
-
-  const logout = () => {
-    removeToken();
-    setUser(null);
   };
 
   return (

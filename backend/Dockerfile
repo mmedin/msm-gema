@@ -12,6 +12,7 @@ COPY prisma ./prisma/
 RUN npx prisma generate
 
 COPY src ./src/
+COPY scripts ./scripts/
 RUN npm run build
 
 COPY entrypoint.sh ./
